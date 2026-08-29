@@ -122,7 +122,7 @@ function fusedSteps(store: PaymentRow[]): Step[] {
     if (!firstSeen.has(r.counterparty)) firstSeen.set(r.counterparty, r.at);
   const newOnes = [...firstSeen.entries()].filter(([, at]) => at >= "2025-05-01").map(([c]) => c);
   return [
-    { t: "READ", d: `page one: ${page.length} of ${population.length} rows; nobody asks for page two`, tone: "info" },
+    { t: "READ", d: `page one: ${page.length} of ${population.length} rows (its own built-in pagination default; the cap switch does not touch this machine)`, tone: "info" },
     { t: "COUNT", d: `code ranks the page: ${top2}`, tone: "info" },
     { t: "NARRATE", d: `the page's winner is sold as the QUARTER's winner; no coverage stamp exists to stop it`, tone: "bad" },
     { t: "NOVELTY", d: newOnes.length ? `window-only "new": ${newOnes.join(", ")}; anything before ${QUARTER.from} is invisible` : `window-only "new": none found`, tone: "bad" },
@@ -481,7 +481,7 @@ details summary { cursor:pointer; font:600 11px Consolas, monospace; letter-spac
     <div class="row">
       <label class="sw" data-tip="policy-admitted: checks pass and policy AP-9 lets it proceed; nobody confirmed the reading, and the record says so. Certified to proceed, never certified correct."><input type="radio" name="st" value="policy-admitted" checked> policy-admitted</label>
       <label class="sw" data-tip="requester-confirmed: analyst-r-2093 attributably confirms the reading. Certifies meaning only: never grants authority, never upgrades coverage (the cap's strike still happens)."><input type="radio" name="st" value="requester-confirmed"> requester-confirmed</label>
-      <label class="sw" data-tip="cap read at 500: forces a partial read, stamped honestly; the clerk strikes over-claiming, the qualified form survives, disposition degrades with a path to yes."><input type="checkbox" id="cap"> cap read at 500</label>
+      <label class="sw" data-tip="cap read at 500: caps the CAREFUL machine's read (stamped honestly; the clerk strikes over-claiming; disposition degrades with a path to yes). The fused machine is ALWAYS capped: that built-in default is its bug."><input type="checkbox" id="cap"> cap the careful read at 500</label>
       <label class="sw" data-tip="real model interpreter: claude-sonnet-5 drafts the contract (one small API call; key stays on the server). Nondeterministic; may stop at the gate for clarification. Same checks as the stub."><input type="checkbox" id="live" ${LIVE ? "checked" : "disabled"}> real model interpreter</label>
     </div>
     <div class="chiphint" id="chiphint">point at any scenario or switch for what it does.</div>
