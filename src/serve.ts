@@ -165,6 +165,9 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
   };
   const done = () => ((result.transcript = out.join("\n")), result);
 
+  log(
+    `RUN: interpreter=${useLive ? "live model" : "stub"}, standing=${req.standing === "requester-confirmed" ? "requester-confirmed" : "policy-admitted"}, cap=${req.cap ? "500" : "off"}`,
+  );
   log(`QUESTION: ${question}`);
   if (parsed.skipped)
     log(`EVIDENCE: ${parsed.skipped} malformed line(s) skipped`);
@@ -350,6 +353,7 @@ label[title] { cursor:help; border-bottom:1px dotted #B7AB99; padding-bottom:1px
 .answer.careful h2 { color:#2E6B3F; }
 .answer .quote { font-size:14.5px; line-height:1.5; }
 .verdictline { margin-top:9px; font-size:12.5px; color:#6E6357; font-style:italic; }
+.cardsub { font-size:11.5px; line-height:1.45; color:#8A7E6E; margin:-2px 0 9px; }
 details { margin:12px 0 0; }
 details summary { cursor:pointer; font:600 12px Consolas, monospace; letter-spacing:2px; text-transform:uppercase; color:#1E5FC8; }
 details pre { margin-top:8px; }
@@ -399,8 +403,8 @@ below it, and check both against <b>GROUND TRUTH</b> at the top.</div>
     <div class="row"><button id="go">Run</button></div>
     <div class="truthline" id="truth" hidden></div>
     <div class="answers" id="answers" hidden>
-      <div class="answer fused"><h2>Fused machine says</h2><div class="quote" id="fusedOut"></div><div class="verdictline" id="fusedVerdict"></div></div>
-      <div class="answer careful"><h2>Careful machine says</h2><div class="quote" id="carefulOut"></div><div class="verdictline" id="carefulStatus"></div></div>
+      <div class="answer fused"><h2>Fused machine says</h2><div class="cardsub">the chapter-1 baseline, deliberately ordinary: capped read nobody owns, novelty answered from the window. Expected to be confidently wrong; the line below says how wrong it is on THIS evidence.</div><div class="quote" id="fusedOut"></div><div class="verdictline" id="fusedVerdict"></div></div>
+      <div class="answer careful"><h2>Careful machine says</h2><div class="cardsub">the book's architecture: same data, same question, every claim certified against records. When it cannot establish something, it says so instead of guessing.</div><div class="quote" id="carefulOut"></div><div class="verdictline" id="carefulStatus"></div></div>
     </div>
     <details id="transcriptBox" hidden open><summary>The records, station by station</summary><pre id="out"></pre></details>
     <pre id="idle">ready. click a scenario above, or press Run.</pre>
