@@ -95,39 +95,39 @@ interface RunRequest {
   evidence?: string;
 }
 
+export interface Step {
+  t: string; // station label
+  d: string; // one-line detail, real values from this run
+  tone: "ok" | "warn" | "bad" | "stop" | "info";
+}
+
 interface RunResult {
   truth: string[];
-  fused: { answer: string; verdict: string; flow: string };
-  careful: { answer: string; status: string };
+  fused: { answer: string; verdict: string; steps: Step[] };
+  careful: { answer: string; status: string; steps: Step[] };
   transcript: string;
 }
 
 // the fused machine's flow, narrated with this run's actual numbers: every
 // step works as documented, and no step owns the question being answered
-function fusedFlow(store: PaymentRow[]): string {
+function fusedSteps(store: PaymentRow[]): Step[] {
   const population = store.filter(
     (r) => r.account === "acct-1187" && r.at >= QUARTER.from && r.at <= QUARTER.to,
   );
   const page = cappedRead(store, "acct-1187");
   const ranked = rank(page.filter((r) => r.kind === "external"));
-  const top3 = ranked.slice(0, 3).map((r) => `${r.counterparty} ${r.payments}`).join(", ");
+  const top2 = ranked.slice(0, 2).map((r) => `${r.counterparty} ${r.payments}`).join(", ");
   const firstSeen = new Map<string, string>();
   for (const r of [...population].sort((a, b) => (a.at < b.at ? -1 : 1)))
     if (!firstSeen.has(r.counterparty)) firstSeen.set(r.counterparty, r.at);
-  const newOnes = [...firstSeen.entries()].filter(([, at]) => at >= "2025-05-01");
+  const newOnes = [...firstSeen.entries()].filter(([, at]) => at >= "2025-05-01").map(([c]) => c);
   return [
-    `1. retrieval reads page one: ${page.length} rows (client pagination default;`,
-    `   nobody asks for page two; the quarter actually holds ${population.length})`,
-    `2. code counts the page and ranks: ${top3}`,
-    `3. the narrator writes the page's winner as the QUARTER's winner:`,
-    `   "most frequent payee this quarter" -- no coverage stamp exists to stop it`,
-    `4. novelty: a window read; "new" = first seen in the window after May 1:`,
-    newOnes.length
-      ? newOnes.map(([c, at]) => `   ${c} (first in-window ${at}; anything before ${QUARTER.from} is invisible)`).join("\n")
-      : `   none`,
-    `5. the sentence ships. No record says what was read, no check compares the`,
-    `   claim to its coverage, and no component owned "new". Every box worked.`,
-  ].join("\n");
+    { t: "READ", d: `page one: ${page.length} of ${population.length} rows; nobody asks for page two`, tone: "info" },
+    { t: "COUNT", d: `code ranks the page: ${top2}`, tone: "info" },
+    { t: "NARRATE", d: `the page's winner is sold as the QUARTER's winner; no coverage stamp exists to stop it`, tone: "bad" },
+    { t: "NOVELTY", d: newOnes.length ? `window-only "new": ${newOnes.join(", ")}; anything before ${QUARTER.from} is invisible` : `window-only "new": none found`, tone: "bad" },
+    { t: "SHIP", d: `no record of what was read, no claim check, nobody owned "new"; every box worked`, tone: "bad" },
+  ];
 }
 
 // the fused machine judged against the ground truth of THIS evidence: its
@@ -182,12 +182,13 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
   const fused = {
     answer: fusedAnswer(store, "acct-1187"),
     verdict: fusedVerdict(store),
-    flow: fusedFlow(store),
+    steps: fusedSteps(store),
   };
+  const steps: Step[] = [];
   const result: RunResult = {
     truth,
     fused,
-    careful: { answer: "", status: "" },
+    careful: { answer: "", status: "", steps },
     transcript: "",
   };
   const done = () => ((result.transcript = out.join("\n")), result);
@@ -211,7 +212,9 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
       answer:
         "No answer: the draft was rejected by mechanical validation, so nothing proceeded.",
       status: "draft rejected (fail closed)",
+      steps,
     };
+    steps.push({ t: "INTERPRETER", d: "draft rejected by mechanical validation; nothing proceeded", tone: "stop" });
     return done();
   }
   log(`PROPOSAL (drafted by ${proposal.proposedBy}):`);
@@ -233,10 +236,17 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
     log(`  ask ${a.askId}  ${a.kind}  <- "${a.sourceSpan}"  (${res})`);
   }
   log(`  unclaimedText [${proposal.content.unclaimedText.join(" | ")}]`);
+  steps.push({
+    t: "PROPOSAL",
+    d: `${proposal.proposedBy} · subjects [${proposal.content.subjects.join(", ")}]` +
+      (proposal.content.unclaimedText.length ? ` · unclaimed: "${proposal.content.unclaimedText.join("; ")}"` : ""),
+    tone: "info",
+  });
 
   if (!coherent(proposal.content)) {
     log(`GATE: incoherent draft; nothing proceeds`);
-    result.careful = { answer: "No answer: the draft failed coherence checks.", status: "incoherent draft (fail closed)" };
+    steps.push({ t: "GATE", d: "incoherent draft; nothing proceeds", tone: "stop" });
+    result.careful = { answer: "No answer: the draft failed coherence checks.", status: "incoherent draft (fail closed)", steps };
     return done();
   }
   const unresolved = proposal.content.asks.filter(
@@ -253,7 +263,13 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
         `No answer yet: before reading a single row, the gate routes the ambiguity back to you. ` +
         unresolved.map((a) => `What did you mean by "${a.sourceSpan}"?`).join(" "),
       status: "clarification-needed (nothing executed)",
+      steps,
     };
+    steps.push({
+      t: "GATE",
+      d: `clarification-needed: ${unresolved.map((a) => `"${a.sourceSpan}"`).join("; ")} routed back to the requester; nothing executes`,
+      tone: "stop",
+    });
     return done();
   }
 
@@ -271,6 +287,7 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
   log(
     `GATE: decision=${gateCert.decision}, standing=${gateCert.content.standing.kind}`,
   );
+  steps.push({ t: "GATE", d: `${gateCert.decision} · standing ${gateCert.content.standing.kind}`, tone: "ok" });
 
   const scopeCert = effectiveScope(gateCert, GRANTS, "2025-07-04");
   log(
@@ -280,10 +297,23 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
         : ""),
   );
 
+  steps.push(
+    scopeCert.content.conflicts.length
+      ? { t: "SCOPE", d: `narrowed to [${scopeCert.content.inScope.subjects.join(", ")}] · fell out: ${scopeCert.content.conflicts.map((c) => c.element).join(", ")}`, tone: "warn" }
+      : { t: "SCOPE", d: `accepted · in scope [${scopeCert.content.inScope.subjects.join(", ")}]`, tone: "ok" },
+  );
   const selections = selectOperations(gateCert.content.contract.asks);
   for (const s of selections.filter((x) => x.cannotExecute))
     log(`REGISTRY: ${s.askId} CANNOT-EXECUTE (${s.cannotExecute!.ground})`);
 
+  {
+    const refused = selections.filter((x) => x.cannotExecute);
+    steps.push(
+      refused.length
+        ? { t: "REGISTRY", d: `cannot-execute: ${refused.map((s2) => s2.cannotExecute!.ground).join("; ")}`, tone: "warn" }
+        : { t: "REGISTRY", d: "every ask has a registered operation", tone: "ok" },
+    );
+  }
   const interception: InterceptionLog = { entries: [] };
   const w = gateCert.content.contract.window;
   const { exec, evidence, ranking } = run(
@@ -296,6 +326,11 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
   log(
     `EVIDENCE: read ${evidence.coverage.itemsRead} of ${evidence.coverage.populationCount}, complete=${evidence.coverage.complete}`,
   );
+  steps.push(
+    evidence.coverage.complete
+      ? { t: "EVIDENCE", d: `read ${evidence.coverage.itemsRead} of ${evidence.coverage.populationCount} · complete, stamped`, tone: "ok" }
+      : { t: "EVIDENCE", d: `read ${evidence.coverage.itemsRead} of ${evidence.coverage.populationCount} · PARTIAL, stamped honestly`, tone: "warn" },
+  );
 
   const ledger: Ledger = {
     evidence: new Map([[evidence.evidenceId, evidence]]),
@@ -305,6 +340,14 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
   const verdicts = verifyAll(claims, ledger);
   for (const v of verdicts.filter((x) => x.outcome === "struck"))
     log(`CLERK: ${v.claimId} STRUCK (${v.failingCheck})`);
+  {
+    const struck = verdicts.filter((x) => x.outcome === "struck");
+    steps.push(
+      struck.length
+        ? { t: "CLERK", d: `struck ${struck.map((v) => v.claimId).join(", ")}: ${struck[0]!.failingCheck}`, tone: "warn" }
+        : { t: "CLERK", d: `all proposed claims certified`, tone: "ok" },
+    );
+  }
   const disposition = deriveDisposition({
     contractCertified: true,
     unresolvedAmbiguity: false,
@@ -335,10 +378,17 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
     ledger,
     claims: new Set(claims.map((c) => c.claimId)),
   });
+  steps.push({
+    t: "ANSWER",
+    d: `${disposition.disposition} · path to yes: ${disposition.pathToYes}`,
+    tone: disposition.disposition === "answered" ? "ok" : "warn",
+  });
   log(`REPLAY: ${ans.answerId} every reference resolves = ${rep.ok}`);
+  steps.push({ t: "REPLAY", d: rep.ok ? "every reference resolves" : "BROKEN: " + rep.missing.join(", "), tone: rep.ok ? "ok" : "stop" });
   result.careful = {
     answer: render(claims, verdicts, disposition),
     status: `${disposition.disposition}; standing ${gateCert.content.standing.kind}; drafted by ${proposal.proposedBy}; replay ${rep.ok ? "resolves" : "BROKEN"}`,
+    steps,
   };
   return done();
 }
@@ -387,6 +437,20 @@ label.sw { cursor:help; border-bottom:1px dotted #B7AB99; padding-bottom:1px; }
 details { margin:12px 0 0; }
 details summary { cursor:pointer; font:600 12px Consolas, monospace; letter-spacing:2px; text-transform:uppercase; color:#1E5FC8; }
 details pre { margin-top:8px; }
+.flowchart { margin:11px 0 2px; }
+.fstep { position:relative; padding:2px 0 10px 24px; }
+.fstep::before { content:""; position:absolute; left:7px; top:14px; bottom:-2px; width:2px; background:#D9CFC0; }
+.fstep:last-child::before { display:none; }
+.fstep::after { content:""; position:absolute; left:2px; top:5px; width:12px; height:12px; border-radius:50%;
+  background:var(--dot,#6E6357); box-shadow:0 0 0 2px #FDFAF4; }
+.fstep.ok { --dot:#2E6B3F; } .fstep.warn { --dot:#B0801F; } .fstep.bad { --dot:#9C3B2E; }
+.fstep.stop { --dot:#9C3B2E; } .fstep.info { --dot:#6E6357; }
+.fstep b { font:600 11px Consolas, monospace; letter-spacing:1.5px; }
+.fstep.ok b { color:#2E6B3F; } .fstep.warn b { color:#B0801F; } .fstep.bad b, .fstep.stop b { color:#9C3B2E; }
+.fstep.info b { color:#6E6357; }
+.fstep span { display:block; font-size:12.5px; line-height:1.45; color:#3A3227; }
+.fstep.stop span { font-weight:600; }
+details summary { cursor:pointer; font:600 11px Consolas, monospace; letter-spacing:1.5px; text-transform:uppercase; color:#6E6357; }
 </style></head><body><div class="wrap">
 <div class="badge">LOCALHOST &middot; LIVE MODEL: ${LIVE ? "AVAILABLE" : "OFF (no key in server env)"}</div>
 <h1>The Careful Machine, local</h1>
@@ -425,9 +489,10 @@ details pre { margin-top:8px; }
     <div class="truthline" id="truth" hidden></div>
     <div class="answers" id="answers" hidden>
       <div class="answer fused"><h2>Fused machine says</h2><div class="cardsub">the deliberately ordinary baseline</div><div class="quote" id="fusedOut"></div><div class="verdictline" id="fusedVerdict"></div>
-        <details><summary>The flow</summary><pre id="fusedFlow"></pre></details></div>
+        <div class="flowchart" id="fusedFlow"></div></div>
       <div class="answer careful"><h2>Careful machine says</h2><div class="cardsub">the book's architecture</div><div class="quote" id="carefulOut"></div><div class="verdictline" id="carefulStatus"></div>
-        <details><summary>The records</summary><pre id="out"></pre></details></div>
+        <div class="flowchart" id="carefulFlow"></div>
+        <details><summary>Raw records</summary><pre id="out"></pre></details></div>
     </div>
     <pre id="idle">ready. click a scenario above, or press Run.</pre>
   </div>
@@ -466,6 +531,20 @@ document.querySelectorAll(".chip").forEach((b) => {
   b.addEventListener("focus", show);
   b.addEventListener("click", () => { show(); PRESETS[b.dataset.s](); runNow(); });
 });
+function renderFlow(el, steps) {
+  el.textContent = "";
+  for (const st of steps) {
+    const d = document.createElement("div");
+    d.className = "fstep " + st.tone;
+    const b = document.createElement("b");
+    b.textContent = st.t;
+    const sp = document.createElement("span");
+    sp.textContent = st.d;
+    d.appendChild(b);
+    d.appendChild(sp);
+    el.appendChild(d);
+  }
+}
 async function runNow() {
   $("#go").disabled = true;
   $("#idle").hidden = false;
@@ -486,7 +565,8 @@ async function runNow() {
     $("#fusedVerdict").textContent = r.fused.verdict;
     $("#carefulOut").textContent = "“" + r.careful.answer + "”";
     $("#carefulStatus").textContent = r.careful.status;
-    $("#fusedFlow").textContent = r.fused.flow;
+    renderFlow($("#fusedFlow"), r.fused.steps);
+    renderFlow($("#carefulFlow"), r.careful.steps);
     $("#out").textContent = r.transcript;
     $("#truth").hidden = false;
     $("#answers").hidden = false;
