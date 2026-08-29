@@ -25,6 +25,7 @@ including hostile and over-confident ones; the architecture is what decides.
 ```bash
 npm install        # dev-only: typescript + @types/node
 npm run demo       # both machines answer the question; ground truth printed first
+npm run serve      # local web UI at http://127.0.0.1:8787 (live model when key set)
 npm test           # node's built-in runner; no runtime dependencies
 npm run typecheck  # the compile-time gates live here too
 ```
