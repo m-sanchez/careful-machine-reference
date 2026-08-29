@@ -265,6 +265,9 @@ label[title] { cursor:help; border-bottom:1px dotted #B7AB99; padding-bottom:1px
 .chip.ghost { border-style:dashed; }
 .howto { background:#FDFAF4; border:1px solid #D9CFC0; padding:10px 14px; font-size:13.5px; margin:0 0 14px; }
 .howto b { color:#1E5FC8; }
+.legend { border:1px solid #D9CFC0; border-left:4px solid #1E5FC8; background:#FDFAF4; padding:8px 12px; margin:6px 0 2px; display:grid; gap:7px; }
+.legend div { font-size:13px; line-height:1.5; color:#3A3227; }
+.legend b { color:#1E5FC8; font-family:Consolas, monospace; font-size:12px; letter-spacing:.5px; }
 </style></head><body><div class="wrap">
 <div class="badge">LOCALHOST &middot; LIVE MODEL: ${LIVE ? "AVAILABLE" : "OFF (no key in server env)"}</div>
 <h1>The Careful Machine, local</h1>
@@ -296,6 +299,12 @@ below it, and check both against <b>GROUND TRUTH</b> at the top.</div>
       <label title="An attributable requester record (analyst-r-2093) confirms the reading and its assumptions. Confirmation certifies MEANING only; it never grants authority and never upgrades coverage."><input type="radio" name="st" value="requester-confirmed"> requester-confirmed</label>
       <label title="Forces a partial read (500 of ~1310 rows), stamped honestly on the evidence. The clerk then strikes any claim whose coverage exceeds the read, and the disposition degrades with a path to yes."><input type="checkbox" id="cap"> cap read at 500</label>
       <label title="claude-sonnet-5 drafts the contract through a forced tool schema (one small API call; key stays on the server). Nondeterministic: it may quarantine the injection, refuse-record it, or mark an ask unresolved, which stops execution at the gate."><input type="checkbox" id="live" ${LIVE ? "checked" : "disabled"}> real model interpreter</label>
+    </div>
+    <div class="legend">
+      <div><b>policy-admitted</b>: the gate lets the contract proceed because the mechanical checks pass and admission policy AP-9 permits this class. Nobody confirmed the reading, and the record says so: certified to <i>proceed</i>, never certified <i>correct</i>.</div>
+      <div><b>requester-confirmed</b>: an attributable requester record (analyst-r-2093) confirms the reading and its assumptions. It certifies <i>meaning</i> only: it never grants authority over data, and it never upgrades coverage. Try it with the cap on and watch the strike happen anyway.</div>
+      <div><b>cap read at 500</b>: forces a partial read (500 of ~1,310 rows), stamped honestly on the evidence record. The clerk then strikes any claim whose coverage exceeds what was read; the qualified form survives naming its subset, and the disposition degrades with a path to yes.</div>
+      <div><b>real model interpreter</b>: claude-sonnet-5 drafts the contract through a forced tool schema (one small API call; the key stays on the server). Nondeterministic: it may quarantine the injection as unclaimed text, record it as an ask policy will refuse, or mark "new?" unresolved, which stops everything at the gate. Whatever it proposes meets the same checks as the stub.</div>
     </div>
     <div class="row"><button id="go">Run</button></div>
     <pre id="out">ready. click a scenario above, or press Run.</pre>
