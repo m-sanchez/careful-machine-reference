@@ -204,7 +204,15 @@ export async function draftContractLive(
   const toolUse = body.content?.find((b) => b.type === "tool_use");
   if (!toolUse) throw new Error("interpreter returned no tool_use block");
 
-  const fields = validate(toolUse.input as RawDraft);
+  let fields: ReturnType<typeof validate>;
+  try {
+    fields = validate(toolUse.input as RawDraft);
+  } catch (e) {
+    // rejection is the mechanism working; show what the model actually
+    // proposed so the refusal is inspectable (model output, nothing secret)
+    console.error("rejected draft, verbatim:", JSON.stringify(toolUse.input, null, 2));
+    throw e;
+  }
   return {
     proposalId: proposalId(),
     proposedBy: body.model || model, // the actual model identity, on the record

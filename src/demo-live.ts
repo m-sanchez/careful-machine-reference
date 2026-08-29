@@ -1,7 +1,7 @@
 // The live demo: a REAL model drafts the contract; every other station is
 // the same code the stub runs through. Opt-in:
 //   ANTHROPIC_API_KEY=... npm run demo:live [-- --confirmed] ["your question"]
-import { buildStore, QUARTER } from "./store.ts";
+import { buildStore } from "./store.ts";
 import { draftContractLive } from "./careful/llm-interpreter.ts";
 import { certifyAdmitted, certifyConfirmed, coherent } from "./careful/gate.ts";
 import { GRANTS, effectiveScope } from "./careful/scope.ts";
@@ -44,6 +44,17 @@ console.log(`  unclaimedText [${proposal.content.unclaimedText.join(" | ")}]`);
 if (!coherent(proposal.content))
   throw new Error("draft failed coherence checks; nothing proceeds");
 
+// surviving contract-relevant ambiguity goes back to the requester BEFORE
+// anything executes, whatever the stakes (ch. 3)
+const unresolved = proposal.content.asks.filter((a) => a.resolution.state === "unresolved");
+if (unresolved.length) {
+  console.log(`\nGATE: clarification-needed; nothing executes.`);
+  for (const a of unresolved)
+    console.log(`  unresolved ask ${a.askId} ("${a.sourceSpan}"): the requester must say what they meant`);
+  console.log(`  path to yes: answer the clarifying question, then re-run`);
+  process.exit(0);
+}
+
 const gateCert = confirmed
   ? certifyConfirmed(proposal, {
       requesterId: "analyst-r-2093",
@@ -75,10 +86,15 @@ for (const s of selections.filter((x) => x.cannotExecute))
   );
 
 const interception: InterceptionLog = { entries: [] };
+// the read honours the certified contract's window, not a constant
+const contractWindow = {
+  from: gateCert.content.contract.window.from,
+  to: gateCert.content.contract.window.to,
+};
 const { exec, evidence, ranking } = run(
   scopeCert,
   store,
-  QUARTER,
+  contractWindow,
   interception,
 );
 console.log(
