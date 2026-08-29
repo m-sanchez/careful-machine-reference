@@ -99,9 +99,37 @@ interface RunRequest {
 
 interface RunResult {
   truth: string[];
-  fused: { answer: string; verdict: string };
+  fused: { answer: string; verdict: string; flow: string };
   careful: { answer: string; status: string };
   transcript: string;
+}
+
+// the fused machine's flow, narrated with this run's actual numbers: every
+// step works as documented, and no step owns the question being answered
+function fusedFlow(store: PaymentRow[]): string {
+  const population = store.filter(
+    (r) => r.account === "acct-1187" && r.at >= QUARTER.from && r.at <= QUARTER.to,
+  );
+  const page = cappedRead(store, "acct-1187");
+  const ranked = rank(page.filter((r) => r.kind === "external"));
+  const top3 = ranked.slice(0, 3).map((r) => `${r.counterparty} ${r.payments}`).join(", ");
+  const firstSeen = new Map<string, string>();
+  for (const r of [...population].sort((a, b) => (a.at < b.at ? -1 : 1)))
+    if (!firstSeen.has(r.counterparty)) firstSeen.set(r.counterparty, r.at);
+  const newOnes = [...firstSeen.entries()].filter(([, at]) => at >= "2025-05-01");
+  return [
+    `1. retrieval reads page one: ${page.length} rows (client pagination default;`,
+    `   nobody asks for page two; the quarter actually holds ${population.length})`,
+    `2. code counts the page and ranks: ${top3}`,
+    `3. the narrator writes the page's winner as the QUARTER's winner:`,
+    `   "most frequent payee this quarter" -- no coverage stamp exists to stop it`,
+    `4. novelty: a window read; "new" = first seen in the window after May 1:`,
+    newOnes.length
+      ? newOnes.map(([c, at]) => `   ${c} (first in-window ${at}; anything before ${QUARTER.from} is invisible)`).join("\n")
+      : `   none`,
+    `5. the sentence ships. No record says what was read, no check compares the`,
+    `   claim to its coverage, and no component owned "new". Every box worked.`,
+  ].join("\n");
 }
 
 // the fused machine judged against the ground truth of THIS evidence: its
@@ -156,6 +184,7 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
   const fused = {
     answer: fusedAnswer(store, "acct-1187"),
     verdict: fusedVerdict(store),
+    flow: fusedFlow(store),
   };
   const result: RunResult = {
     truth,
@@ -188,6 +217,12 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
     return done();
   }
   log(`PROPOSAL (drafted by ${proposal.proposedBy}):`);
+  if (useLive)
+    log(
+      `  (the model's private reasoning is deliberately unrecorded: an interpreter\n` +
+        `   explaining itself is more generated text lobbying the reviewer; the\n` +
+        `   contract below is the artifact, and only it acquires standing)`,
+    );
   log(`  subjects      [${proposal.content.subjects.join(", ")}]`);
   log(
     `  window        ${proposal.content.window.from} .. ${proposal.content.window.to}  origin: ${proposal.content.window.origin.toUpperCase()}`,
@@ -403,10 +438,11 @@ below it, and check both against <b>GROUND TRUTH</b> at the top.</div>
     <div class="row"><button id="go">Run</button></div>
     <div class="truthline" id="truth" hidden></div>
     <div class="answers" id="answers" hidden>
-      <div class="answer fused"><h2>Fused machine says</h2><div class="cardsub">the chapter-1 baseline, deliberately ordinary: capped read nobody owns, novelty answered from the window. Expected to be confidently wrong; the line below says how wrong it is on THIS evidence.</div><div class="quote" id="fusedOut"></div><div class="verdictline" id="fusedVerdict"></div></div>
-      <div class="answer careful"><h2>Careful machine says</h2><div class="cardsub">the book's architecture: same data, same question, every claim certified against records. When it cannot establish something, it says so instead of guessing.</div><div class="quote" id="carefulOut"></div><div class="verdictline" id="carefulStatus"></div></div>
+      <div class="answer fused"><h2>Fused machine says</h2><div class="cardsub">the chapter-1 baseline, deliberately ordinary: capped read nobody owns, novelty answered from the window. Expected to be confidently wrong; the line below says how wrong it is on THIS evidence.</div><div class="quote" id="fusedOut"></div><div class="verdictline" id="fusedVerdict"></div>
+        <details open><summary>How it got there (the flow)</summary><pre id="fusedFlow"></pre></details></div>
+      <div class="answer careful"><h2>Careful machine says</h2><div class="cardsub">the book's architecture: same data, same question, every claim certified against records. When it cannot establish something, it says so instead of guessing.</div><div class="quote" id="carefulOut"></div><div class="verdictline" id="carefulStatus"></div>
+        <details open><summary>How it got there (the records)</summary><pre id="out"></pre></details></div>
     </div>
-    <details id="transcriptBox" hidden open><summary>The records, station by station</summary><pre id="out"></pre></details>
     <pre id="idle">ready. click a scenario above, or press Run.</pre>
   </div>
 </div>
@@ -459,10 +495,10 @@ async function runNow() {
     $("#fusedVerdict").textContent = r.fused.verdict;
     $("#carefulOut").textContent = "“" + r.careful.answer + "”";
     $("#carefulStatus").textContent = r.careful.status;
+    $("#fusedFlow").textContent = r.fused.flow;
     $("#out").textContent = r.transcript;
     $("#truth").hidden = false;
     $("#answers").hidden = false;
-    $("#transcriptBox").hidden = false;
     $("#idle").hidden = true;
   } catch (e) {
     $("#idle").hidden = false;
