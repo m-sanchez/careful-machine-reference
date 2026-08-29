@@ -1,0 +1,18 @@
+{
+  "name": "careful-machine-reference",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Reference implementation for The Careful Machine: one question answered by the chapter-1 machine and by the careful architecture, side by side. Demonstration, not framework.",
+  "scripts": {
+    "test": "node --experimental-strip-types --test test/fused.test.ts test/careful.test.ts test/types.test.ts",
+    "demo": "node --experimental-strip-types src/demo.ts",
+    "typecheck": "tsc --noEmit",
+    "demo:hostile": "node --experimental-strip-types src/demo-hostile-confirmed.ts",
+    "demo:live": "node --experimental-strip-types src/demo-live.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^26.4.0",
+    "typescript": "^5.5.0"
+  }
+}
