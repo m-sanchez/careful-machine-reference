@@ -10,7 +10,11 @@ import {
   type RequestContract,
 } from "../records.ts";
 
-const API_URL = (process.env.ANTHROPIC_BASE_URL || "https://api.anthropic.com").replace(/\/$/, "") + "/v1/messages";
+const API_URL =
+  (process.env.ANTHROPIC_BASE_URL || "https://api.anthropic.com").replace(
+    /\/$/,
+    "",
+  ) + "/v1/messages";
 const DEFAULT_MODEL = "claude-sonnet-5";
 
 const CONTRACT_TOOL = {
@@ -167,16 +171,31 @@ let askSeq = 0;
 const proposalAskId = () => `a-live-${++askSeq}`;
 let contractSeq = 0;
 
-export async function draftContractLive(
-  requestText: string,
-): Promise<Proposal<RequestContract>> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey)
-    throw new Error(
-      "ANTHROPIC_API_KEY is not set; the live interpreter needs it (never stored, never printed)",
-    );
-  const model = process.env.ANTHROPIC_MODEL || DEFAULT_MODEL;
+// transport-layer normalization only, never semantic repair: some drafts
+// arrive double-encoded (the whole valid object as a JSON string inside one
+// property); unwrap that envelope and let validation judge the content
+function normalize(input: unknown): RawDraft {
+  if (input && typeof input === "object" && !("subjects" in input)) {
+    for (const v of Object.values(input)) {
+      if (
+        typeof v === "string" &&
+        v.trimStart().startsWith("{") &&
+        v.includes('"subjects"')
+      ) {
+        try {
+          const parsed = JSON.parse(v);
+          if (parsed && typeof parsed === "object" && "subjects" in parsed)
+            return parsed as RawDraft;
+        } catch {
+          /* fall through to validation, which will reject */
+        }
+      }
+    }
+  }
+  return input as RawDraft;
+}
 
+async function callOnce(requestText: string, apiKey: string, model: string) {
   const res = await fetch(API_URL, {
     method: "POST",
     headers: {
@@ -203,20 +222,44 @@ export async function draftContractLive(
   };
   const toolUse = body.content?.find((b) => b.type === "tool_use");
   if (!toolUse) throw new Error("interpreter returned no tool_use block");
+  return { input: toolUse.input, model: body.model || model };
+}
 
-  let fields: ReturnType<typeof validate>;
-  try {
-    fields = validate(toolUse.input as RawDraft);
-  } catch (e) {
-    // rejection is the mechanism working; show what the model actually
-    // proposed so the refusal is inspectable (model output, nothing secret)
-    console.error("rejected draft, verbatim:", JSON.stringify(toolUse.input, null, 2));
-    throw e;
+export async function draftContractLive(
+  requestText: string,
+): Promise<Proposal<RequestContract>> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey)
+    throw new Error(
+      "ANTHROPIC_API_KEY is not set; the live interpreter needs it (never stored, never printed)",
+    );
+  const model = process.env.ANTHROPIC_MODEL || DEFAULT_MODEL;
+
+  // a rejected draft gets exactly one fresh draft; then the refusal stands
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    const got = await callOnce(requestText, apiKey, model);
+    try {
+      const fields = validate(normalize(got.input));
+      return {
+        proposalId: proposalId(),
+        proposedBy: got.model, // the actual model identity, on the record
+        content: {
+          contractId: `c-live-${++contractSeq}`,
+          requestText,
+          ...fields,
+        },
+        basis: [requestText],
+      };
+    } catch (e) {
+      // rejection is the mechanism working; show what the model actually
+      // proposed so the refusal is inspectable (model output, nothing secret)
+      console.error(
+        `rejected draft (attempt ${attempt}), verbatim:`,
+        JSON.stringify(got.input, null, 2),
+      );
+      lastErr = e;
+    }
   }
-  return {
-    proposalId: proposalId(),
-    proposedBy: body.model || model, // the actual model identity, on the record
-    content: { contractId: `c-live-${++contractSeq}`, requestText, ...fields },
-    basis: [requestText],
-  };
+  throw lastErr;
 }
