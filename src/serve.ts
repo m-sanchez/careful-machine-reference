@@ -101,8 +101,19 @@ export interface Step {
   tone: "ok" | "warn" | "bad" | "stop" | "info";
 }
 
+export interface Bar {
+  name: string;
+  n: number;
+}
+export interface WhyBlock {
+  fusedRead: { title: string; bars: Bar[] };
+  carefulRead: { title: string; bars: Bar[] } | null;
+  lines: string[];
+}
+
 interface RunResult {
   truth: string[];
+  why: WhyBlock;
   fused: { answer: string; verdict: string; steps: Step[] };
   careful: { answer: string; status: string; steps: Step[] };
   transcript: string;
@@ -169,6 +180,69 @@ function fusedVerdict(store: PaymentRow[]): string {
   return parts.join("; ") + ".";
 }
 
+function topBars(rows: PaymentRow[], k = 3): Bar[] {
+  return rank(rows.filter((r) => r.kind === "external"))
+    .slice(0, k)
+    .map((r) => ({ name: r.counterparty, n: r.payments }));
+}
+
+// the one-glance causal story: what each machine actually read, and the
+// sentence a non-reader can follow
+function makeWhy(
+  store: PaymentRow[],
+  outcome:
+    | { kind: "stopped"; reason: string }
+    | { kind: "ran"; readRows: PaymentRow[]; complete: boolean; itemsRead: number; population: number | "unknown" },
+): WhyBlock {
+  const population = store.filter(
+    (r) => r.account === "acct-1187" && r.at >= QUARTER.from && r.at <= QUARTER.to,
+  );
+  const page = cappedRead(store, "acct-1187");
+  const fusedBars = topBars(page);
+  const fusedRead = {
+    title: `FUSED read: first ${page.length} of ${population.length} rows (built-in default, unrecorded)`,
+    bars: fusedBars,
+  };
+  const fTop = fusedBars[0];
+
+  if (outcome.kind === "stopped") {
+    return {
+      fusedRead,
+      carefulRead: null,
+      lines: [
+        `The fused machine answered anyway, from ${page.length} silently truncated rows.`,
+        `The careful machine has read NOTHING yet: ${outcome.reason}`,
+        `That is the difference: one guesses through ambiguity, the other stops and asks.`,
+      ],
+    };
+  }
+
+  const carefulBars = topBars(outcome.readRows);
+  const cTop = carefulBars[0];
+  const carefulRead = {
+    title: outcome.complete
+      ? `CAREFUL read: all ${outcome.itemsRead} of ${outcome.population} rows (coverage stamped)`
+      : `CAREFUL read: ${outcome.itemsRead} of ${outcome.population} rows (capped, and SAID so)`,
+    bars: carefulBars,
+  };
+  const lines: string[] = [];
+  if (fTop && cTop && outcome.complete) {
+    lines.push(
+      fTop.name === cTop.name
+        ? `Both name ${fTop.name} this time; on this evidence the truncation happens not to matter.`
+        : `In the first ${page.length} rows, ${fTop.name} leads. Over ALL ${outcome.itemsRead} rows, ${cTop.name} wins ${cTop.n} to ${carefulBars.find((b) => b.name === fTop.name)?.n ?? 0}.`,
+    );
+    lines.push(
+      `Same data, same question. The only difference is what each machine read; the careful one wrote that down, the fused one could not even say.`,
+    );
+  } else if (fTop && cTop) {
+    lines.push(
+      `This time BOTH reads were partial. The careful machine stamped it, weakened its claim to "within the examined rows", and named the wider read; the fused machine narrated its page as the quarter.`,
+    );
+  }
+  return { fusedRead, carefulRead, lines };
+}
+
 async function runPipeline(req: RunRequest): Promise<RunResult> {
   const question =
     (req.question || "").trim() ||
@@ -187,6 +261,7 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
   const steps: Step[] = [];
   const result: RunResult = {
     truth,
+    why: makeWhy(store, { kind: "stopped", reason: "nothing has run yet." }),
     fused,
     careful: { answer: "", status: "", steps },
     transcript: "",
@@ -215,6 +290,7 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
       steps,
     };
     steps.push({ t: "INTERPRETER", d: "draft rejected by mechanical validation; nothing proceeded", tone: "stop" });
+    result.why = makeWhy(store, { kind: "stopped", reason: "the model's draft failed validation, so nothing was allowed to run." });
     return done();
   }
   log(`PROPOSAL (drafted by ${proposal.proposedBy}):`);
@@ -247,6 +323,7 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
     log(`GATE: incoherent draft; nothing proceeds`);
     steps.push({ t: "GATE", d: "incoherent draft; nothing proceeds", tone: "stop" });
     result.careful = { answer: "No answer: the draft failed coherence checks.", status: "incoherent draft (fail closed)", steps };
+    result.why = makeWhy(store, { kind: "stopped", reason: "the draft was incoherent, so nothing was allowed to run." });
     return done();
   }
   const unresolved = proposal.content.asks.filter(
@@ -269,6 +346,10 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
       t: "GATE",
       d: `clarification-needed: ${unresolved.map((a) => `"${a.sourceSpan}"`).join("; ")} routed back to the requester; nothing executes`,
       tone: "stop",
+    });
+    result.why = makeWhy(store, {
+      kind: "stopped",
+      reason: "it stopped at the gate to ask what you meant, before reading a single row.",
     });
     return done();
   }
@@ -385,6 +466,13 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
   });
   log(`REPLAY: ${ans.answerId} every reference resolves = ${rep.ok}`);
   steps.push({ t: "REPLAY", d: rep.ok ? "every reference resolves" : "BROKEN: " + rep.missing.join(", "), tone: rep.ok ? "ok" : "stop" });
+  result.why = makeWhy(store, {
+    kind: "ran",
+    readRows: evidence.payload,
+    complete: evidence.coverage.complete,
+    itemsRead: evidence.coverage.itemsRead,
+    population: evidence.coverage.populationCount,
+  });
   result.careful = {
     answer: render(claims, verdicts, disposition),
     status: `${disposition.disposition}; standing ${gateCert.content.standing.kind}; drafted by ${proposal.proposedBy}; replay ${rep.ok ? "resolves" : "BROKEN"}`,
@@ -451,6 +539,23 @@ details pre { margin-top:8px; }
 .fstep span { display:block; font-size:12.5px; line-height:1.45; color:#3A3227; }
 .fstep.stop span { font-weight:600; }
 details summary { cursor:pointer; font:600 11px Consolas, monospace; letter-spacing:1.5px; text-transform:uppercase; color:#6E6357; }
+.why { border:2px solid #1E5FC8; background:#FDFAF4; padding:12px 16px 14px; margin:12px 0 0; }
+.why h2 { margin:0 0 8px; font:700 13px Consolas, monospace; letter-spacing:2px; text-transform:uppercase; color:#1E5FC8; }
+.whylines div { font-size:14.5px; line-height:1.55; margin:0 0 4px; }
+.whylines div:first-child { font-weight:600; }
+.whybars { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:10px; }
+.whybars > * { min-width:0; }
+@media (max-width:1050px){ .whybars { grid-template-columns:1fr; } }
+.barset h3 { margin:0 0 6px; font:600 10.5px Consolas, monospace; letter-spacing:1px; color:#6E6357; }
+.bar { display:grid; grid-template-columns:120px 1fr 44px; gap:8px; align-items:center; margin:3px 0; font-size:12.5px; }
+.bar .name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.bar .track { background:#EFE7DA; height:14px; }
+.bar .fill { height:14px; }
+.barset.fusedside .fill { background:#9C3B2E; }
+.barset.carefulside .fill { background:#2E6B3F; }
+.bar .num { text-align:right; font-family:Consolas, monospace; font-size:12px; }
+.bar.winner .name { font-weight:700; }
+.barset .empty { font-size:13px; font-style:italic; color:#6E6357; }
 </style></head><body><div class="wrap">
 <div class="badge">LOCALHOST &middot; LIVE MODEL: ${LIVE ? "AVAILABLE" : "OFF (no key in server env)"}</div>
 <h1>The Careful Machine, local</h1>
@@ -487,6 +592,14 @@ details summary { cursor:pointer; font:600 11px Consolas, monospace; letter-spac
     <div class="chiphint" id="chiphint">point at any scenario or switch for what it does.</div>
     <div class="row"><button id="go">Run</button></div>
     <div class="truthline" id="truth" hidden></div>
+    <div class="why" id="why" hidden>
+      <h2>Why the answers differ</h2>
+      <div class="whylines" id="whyLines"></div>
+      <div class="whybars">
+        <div class="barset" id="whyFused"></div>
+        <div class="barset" id="whyCareful"></div>
+      </div>
+    </div>
     <div class="answers" id="answers" hidden>
       <div class="answer fused"><h2>Fused machine says</h2><div class="cardsub">the deliberately ordinary baseline</div><div class="quote" id="fusedOut"></div><div class="verdictline" id="fusedVerdict"></div>
         <div class="flowchart" id="fusedFlow"></div></div>
@@ -531,6 +644,45 @@ document.querySelectorAll(".chip").forEach((b) => {
   b.addEventListener("focus", show);
   b.addEventListener("click", () => { show(); PRESETS[b.dataset.s](); runNow(); });
 });
+function renderBars(el, side, read) {
+  el.textContent = "";
+  el.className = "barset " + side;
+  const h = document.createElement("h3");
+  if (!read) {
+    h.textContent = side === "fusedside" ? "" : "CAREFUL READ: nothing yet";
+    el.appendChild(h);
+    if (side === "carefulside") {
+      const e = document.createElement("div");
+      e.className = "empty";
+      e.textContent = "stopped before reading";
+      el.appendChild(e);
+    }
+    return;
+  }
+  h.textContent = read.title;
+  el.appendChild(h);
+  const max = Math.max(...read.bars.map((b) => b.n), 1);
+  read.bars.forEach((b, i) => {
+    const row = document.createElement("div");
+    row.className = "bar" + (i === 0 ? " winner" : "");
+    const name = document.createElement("span");
+    name.className = "name";
+    name.textContent = b.name;
+    const track = document.createElement("div");
+    track.className = "track";
+    const fill = document.createElement("div");
+    fill.className = "fill";
+    fill.style.width = Math.round((b.n / max) * 100) + "%";
+    track.appendChild(fill);
+    const num = document.createElement("span");
+    num.className = "num";
+    num.textContent = String(b.n);
+    row.appendChild(name);
+    row.appendChild(track);
+    row.appendChild(num);
+    el.appendChild(row);
+  });
+}
 function renderFlow(el, steps) {
   el.textContent = "";
   for (const st of steps) {
@@ -565,6 +717,15 @@ async function runNow() {
     $("#fusedVerdict").textContent = r.fused.verdict;
     $("#carefulOut").textContent = "“" + r.careful.answer + "”";
     $("#carefulStatus").textContent = r.careful.status;
+    $("#whyLines").textContent = "";
+    for (const line of r.why.lines) {
+      const d = document.createElement("div");
+      d.textContent = line;
+      $("#whyLines").appendChild(d);
+    }
+    renderBars($("#whyFused"), "fusedside", r.why.fusedRead);
+    renderBars($("#whyCareful"), "carefulside", r.why.carefulRead);
+    $("#why").hidden = false;
     renderFlow($("#fusedFlow"), r.fused.steps);
     renderFlow($("#carefulFlow"), r.careful.steps);
     $("#out").textContent = r.transcript;
