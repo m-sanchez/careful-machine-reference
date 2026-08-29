@@ -543,6 +543,8 @@ details summary { cursor:pointer; font:600 11px Consolas, monospace; letter-spac
 .why h2 { margin:0 0 8px; font:700 13px Consolas, monospace; letter-spacing:2px; text-transform:uppercase; color:#1E5FC8; }
 .whylines div { font-size:14.5px; line-height:1.55; margin:0 0 4px; }
 .whylines div:first-child { font-weight:600; }
+.whyfoot { font-size:12.5px; color:#6E6357; font-style:italic; margin:6px 0 2px; }
+.tagline { margin:2px 0 12px; font-size:14px; color:#6E6357; font-style:italic; }
 .whybars { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:10px; }
 .whybars > * { min-width:0; }
 @media (max-width:1050px){ .whybars { grid-template-columns:1fr; } }
@@ -559,6 +561,7 @@ details summary { cursor:pointer; font:600 11px Consolas, monospace; letter-spac
 </style></head><body><div class="wrap">
 <div class="badge">LOCALHOST &middot; LIVE MODEL: ${LIVE ? "AVAILABLE" : "OFF (no key in server env)"}</div>
 <h1>The Careful Machine, local</h1>
+<p class="tagline">Two builds of the same little payments app answer the same question over the same rows. No AI computes any number on either side; code counts everything. The difference is architecture.</p>
 <div class="howto">Click a scenario (it sets everything and runs), or edit anything and press Run.</div>
 <div class="cols">
   <div>
@@ -595,15 +598,16 @@ details summary { cursor:pointer; font:600 11px Consolas, monospace; letter-spac
     <div class="why" id="why" hidden>
       <h2>Why the answers differ</h2>
       <div class="whylines" id="whyLines"></div>
+      <div class="whyfoot">No model invented these numbers; both sides are plain code counting rows. "FUSED" = everything in one unowned pipeline, the ordinary way. "CAREFUL" = the same app where every read and claim carries a record.</div>
       <div class="whybars">
         <div class="barset" id="whyFused"></div>
         <div class="barset" id="whyCareful"></div>
       </div>
     </div>
     <div class="answers" id="answers" hidden>
-      <div class="answer fused"><h2>Fused machine says</h2><div class="cardsub">the deliberately ordinary baseline</div><div class="quote" id="fusedOut"></div><div class="verdictline" id="fusedVerdict"></div>
+      <div class="answer fused"><h2>Fused machine says</h2><div class="cardsub">an ordinary app, no AI anywhere: fetch, count, template. Built the way most apps are.</div><div class="quote" id="fusedOut"></div><div class="verdictline" id="fusedVerdict"></div>
         <div class="flowchart" id="fusedFlow"></div></div>
-      <div class="answer careful"><h2>Careful machine says</h2><div class="cardsub">the book's architecture</div><div class="quote" id="carefulOut"></div><div class="verdictline" id="carefulStatus"></div>
+      <div class="answer careful"><h2>Careful machine says</h2><div class="cardsub">the same app, rebuilt: a model (or stub) only DRAFTS the reading of your question; code certifies, counts, and records everything.</div><div class="quote" id="carefulOut"></div><div class="verdictline" id="carefulStatus"></div>
         <div class="flowchart" id="carefulFlow"></div>
         <details><summary>Raw records</summary><pre id="out"></pre></details></div>
     </div>
