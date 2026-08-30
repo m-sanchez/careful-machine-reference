@@ -31,17 +31,17 @@ export function deriveDisposition(input: DispositionInput): DispositionGrounds {
   if (input.unresolvedAmbiguity) return answer("clarification-needed", "answer the clarifying question");
   if (!input.contractCertified) return answer("clarification-needed", "confirm or correct the reading");
   if (!input.executed && input.cannotExecuteGrounds.length)
-    return answer("cannot-execute", "nearest serviceable facts are attached");
+    return answer("cannot-execute", "ask for the nearest thing this build CAN check");
   if (!input.executed && input.scopeConflicts.length)
-    return answer("outside-authority", "the scope owner can extend the grant");
+    return answer("outside-authority", "ask the scope owner to extend the grant");
   if (!input.executed) return answer("cannot-execute", "none");
   if (certified.length === 0 && struck.length > 0)
     return answer("unsupported", "widen the read or weaken the claim");
-  if (input.coveragePartial) return answer("degraded", "a wider read is available");
+  if (input.coveragePartial) return answer("degraded", "run the full read");
   if (certified.length) {
     const routes = [
-      ...(input.cannotExecuteGrounds.length ? ["nearest serviceable facts are attached for the unserved ask"] : []),
-      ...(input.scopeConflicts.length ? ["the scope owner can extend the grant for the excess"] : []),
+      ...(input.cannotExecuteGrounds.length ? ["ask for the nearest thing this build CAN check"] : []),
+      ...(input.scopeConflicts.length ? ["ask the scope owner to extend the grant"] : []),
     ];
     return answer("answered", routes.length ? routes.join("; ") : "none");
   }

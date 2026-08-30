@@ -90,7 +90,7 @@ test("the novelty ask yields cannot-execute grounded in the registry, with neare
   assert.ok(novelty);
   assert.match(novelty.cannotExecute!.ground, /first-appearance/);
   assert.ok(novelty.cannotExecute!.nearestServiceable.length >= 2);
-  assert.match(p.disposition.pathToYes, /unserved ask/);
+  assert.match(p.disposition.pathToYes, /nearest thing this build CAN check/);
 });
 
 test("hostile scope escalation widens the proposal and cannot widen effectiveScope", () => {
@@ -117,7 +117,7 @@ test("disposition derives from records only, by fixed precedence", () => {
   assert.equal(p.disposition.disposition, "answered");
   const partial = pipeline({ cap: 500 });
   assert.equal(partial.disposition.disposition, "degraded"); // partial coverage outranks answered
-  assert.match(partial.disposition.pathToYes, /wider read/);
+  assert.match(partial.disposition.pathToYes, /full read/);
 });
 
 test("standing integrity: only the requester record mints requester-confirmed", () => {

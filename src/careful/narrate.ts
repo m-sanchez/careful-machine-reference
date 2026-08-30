@@ -33,6 +33,16 @@ export function proposeClaims(ranking: DerivedResult): ProposedClaim[] {
   return claims;
 }
 
+// registry-speak stays exact in the records; the rendered sentence gets the
+// plain-language equivalent so a cold reader is never handed jargon
+const GLOSSES: [string, string][] = [
+  [
+    "no registered operation establishes first-appearance",
+    'this build has no approved way to check "first time ever paid", so it declines that part instead of guessing',
+  ],
+];
+const gloss = (s: string) => GLOSSES.reduce((acc, [from, to]) => acc.split(from).join(to), s);
+
 export function render(
   claims: ProposedClaim[],
   verdicts: Verdict[],
@@ -40,8 +50,14 @@ export function render(
 ): string {
   const certified = new Set(verdicts.filter((v) => v.outcome === "certified").map((v) => v.claimId));
   const lines = claims.filter((c) => certified.has(c.claimId)).map((c) => c.assertion);
-  if (disposition.records.length) lines.push(`not established: ${disposition.records.join("; ")}`);
-  lines.push(`path to yes: ${disposition.pathToYes}`);
+  if (disposition.records.length)
+    lines.push(`declined, not guessed: ${disposition.records.map(gloss).join("; ")}`);
+  if (
+    disposition.pathToYes &&
+    disposition.pathToYes !== "none" &&
+    disposition.disposition !== "answered"
+  )
+    lines.push(`to unlock it: ${disposition.pathToYes}`);
   const out = lines.join(". ");
   // constraint check: the rendering may not contain an assertion that was
   // proposed but not certified
