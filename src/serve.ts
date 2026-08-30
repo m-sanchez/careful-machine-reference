@@ -177,7 +177,10 @@ function readingLine(c: RequestContract): string {
         `${a.kind}${a.direction ? ` (${a.direction})` : ""} ← "${a.sourceSpan}"`,
     )
     .join("  +  ");
-  return `${asks}  ·  window ${c.window.from}..${c.window.to} (${c.window.origin})  ·  subjects [${c.subjects.join(", ")}]`;
+  const unclaimed = c.unclaimedText.length
+    ? `  ·  quarantined, acted on by nothing: "${c.unclaimedText.join("; ")}"`
+    : "";
+  return `${asks}  ·  window ${c.window.from}..${c.window.to} (${c.window.origin})  ·  subjects [${c.subjects.join(", ")}]${unclaimed}`;
 }
 
 // the fused machine's flow, narrated with this run's actual numbers: every
