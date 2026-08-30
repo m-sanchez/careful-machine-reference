@@ -8,6 +8,11 @@ import { createServer } from "node:http";
 import { buildStore } from "./store.ts";
 import { answer as fusedAnswer, cappedRead, rank } from "./fused/machine.ts";
 import {
+  callFusedLive,
+  type FusedExchange,
+  type FusedFields,
+} from "./fused/llm-fused.ts";
+import {
   draftContract,
   certifyAdmitted,
   certifyConfirmed,
@@ -139,8 +144,21 @@ interface RunResult {
   truth: string[];
   skipped: number;
   why: WhyBlock;
-  fused: { answer: string; verdict: string; steps: Step[]; badge: Badge };
-  careful: { answer: string; status: string; steps: Step[]; badge: Badge };
+  fused: {
+    answer: string;
+    verdict: string;
+    steps: Step[];
+    badge: Badge;
+    note: string;
+    exchange: FusedExchange | null;
+  };
+  careful: {
+    answer: string;
+    status: string;
+    steps: Step[];
+    badge: Badge;
+    note: string;
+  };
   // the interpreter exchange plus the certified reading, so the page can show
   // what was sent, what came back, and which reading the answer serves
   interp: InterpreterExchange & {
@@ -374,6 +392,109 @@ function makeWhy(
   return { fusedRead, carefulRead, lines, monthGrid: grid };
 }
 
+const FUSED_NOTE_LIVE =
+  "the same model, unharnessed — one generation reads, counts, and narrates; nothing checkable";
+const FUSED_NOTE_STUB =
+  "no AI — ships its one built-in report; never reads your question";
+const CAREFUL_NOTE =
+  "reads your question — claims only what its records support";
+
+// grade the live fused machine's own asserted fields against ground truth;
+// direction comes from the careful machine's drafted reading of the question
+function gradeFusedLive(
+  store: PaymentRow[],
+  direction: "most" | "least",
+  fields: FusedFields,
+): { verdict: string; badge: Badge } {
+  const inQ = store.filter(
+    (r) => r.at >= QUARTER.from && r.at <= QUARTER.to && r.kind === "external",
+  );
+  const ranked = rank(inQ);
+  const expected =
+    direction === "least" ? ranked[ranked.length - 1] : ranked[0];
+  const prior = new Set(
+    store.filter((r) => r.at < QUARTER.from).map((r) => r.counterparty),
+  );
+  const inQNames = new Set(inQ.map((r) => r.counterparty));
+  const genuinelyNew = [...inQNames].filter((c) => !prior.has(c));
+  const parts: string[] = [];
+  let wrong = false;
+  if (fields.rankedPayeeNamed == null) {
+    parts.push("named no payee the key can check");
+  } else if (!expected) {
+    parts.push("named a payee but the quarter holds no external payments");
+    wrong = true;
+  } else if (
+    fields.rankedPayeeNamed.trim().toLowerCase() !==
+    expected.counterparty.toLowerCase()
+  ) {
+    parts.push(
+      `names ${fields.rankedPayeeNamed}; the ${direction === "least" ? "true least-frequent" : "quarter's real top"} is ${expected.counterparty} (${expected.payments})`,
+    );
+    wrong = true;
+  } else if (fields.rankedCountNamed !== expected.payments) {
+    parts.push(
+      `right payee, wrong number: says ${fields.rankedCountNamed ?? "nothing"}, the key says ${expected.payments}`,
+    );
+    wrong = true;
+  } else {
+    parts.push(
+      `matches the key on ${expected.counterparty} (${expected.payments})`,
+    );
+  }
+  if (fields.newCounterpartiesNamed != null) {
+    const falseNew = fields.newCounterpartiesNamed.filter((c) =>
+      prior.has(c.trim()),
+    );
+    const missed = genuinelyNew.filter(
+      (c) =>
+        !fields.newCounterpartiesNamed!.some(
+          (x) => x.trim().toLowerCase() === c.toLowerCase(),
+        ),
+    );
+    if (falseNew.length) {
+      parts.push(`calls ${falseNew.join(", ")} new despite prior history`);
+      wrong = true;
+    }
+    if (missed.length) {
+      parts.push(`misses genuinely new ${missed.join(", ")}`);
+      wrong = true;
+    }
+    if (!falseNew.length && !missed.length)
+      parts.push("gets the new counterparties right");
+  }
+  const verdict = parts.join("; ") + ".";
+  const badge: Badge = wrong
+    ? { tone: "bad", label: "✗ WRONG on this data" }
+    : fields.rankedPayeeNamed == null
+      ? { tone: "warn", label: "◐ made no checkable claim" }
+      : {
+          tone: "warn",
+          label: "◐ right this time — and unverifiable every time",
+        };
+  return { verdict, badge };
+}
+
+function fusedLiveSteps(pageLen: number, population: number): Step[] {
+  return [
+    {
+      t: "READ",
+      d: `handed page one: ${pageLen} of ${population} quarter rows — the integration's default fetch; it was not told`,
+      tone: "warn",
+    },
+    {
+      t: "MODEL",
+      d: "one generation read the question, did the counting, and wrote the answer — no intermediate is recorded",
+      tone: "bad",
+    },
+    {
+      t: "SHIP",
+      d: "shipped verbatim; nothing to replay, nothing to audit",
+      tone: "bad",
+    },
+  ];
+}
+
 async function runPipeline(req: RunRequest): Promise<RunResult> {
   const question =
     (req.question || "").trim() ||
@@ -385,11 +506,50 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
   const log = (s: string) => out.push(s);
   const truth = groundTruth(store);
   const judged = fusedJudgement(store);
-  const fused = {
+  const fused: RunResult["fused"] = {
     answer: fusedAnswer(store, "acct-1187"),
     verdict: judged.verdict,
     badge: judged.badge,
     steps: fusedSteps(store),
+    note: useLive ? FUSED_NOTE_LIVE : FUSED_NOTE_STUB,
+    exchange: null,
+  };
+  // live mode: the fused machine is the same model, unharnessed — handed the
+  // question plus page one of the data; graded once the careful draft reveals
+  // which direction the question asked for
+  let fusedLive: { fields: FusedFields; exchange: FusedExchange } | null = null;
+  if (useLive) {
+    const page = cappedRead(store, "acct-1187");
+    const pageText = page
+      .map(
+        (r) =>
+          `${r.at},${r.counterparty}${r.kind === "internal-transfer" ? ",internal-transfer" : ""}`,
+      )
+      .join("\n");
+    try {
+      fusedLive = await callFusedLive(question, pageText);
+      const population = store.filter(
+        (r) =>
+          r.account === "acct-1187" &&
+          r.at >= QUARTER.from &&
+          r.at <= QUARTER.to,
+      ).length;
+      fused.answer = fusedLive.fields.answerText;
+      fused.steps = fusedLiveSteps(page.length, population);
+      fused.exchange = fusedLive.exchange;
+    } catch (e) {
+      const msg = String((e as Error).message);
+      fused.answer = `(the fused call failed — ${msg})`;
+      fused.verdict = "no answer shipped this run.";
+      fused.badge = { tone: "stop", label: "■ call failed" };
+      fused.steps = [{ t: "MODEL", d: `call failed: ${msg}`, tone: "stop" }];
+    }
+  }
+  const applyFusedGrade = (direction: "most" | "least") => {
+    if (!fusedLive) return;
+    const g = gradeFusedLive(store, direction, fusedLive.fields);
+    fused.verdict = g.verdict;
+    fused.badge = g.badge;
   };
   const steps: Step[] = [];
   const result: RunResult = {
@@ -398,6 +558,7 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
     why: makeWhy(store, { kind: "stopped", reason: "nothing has run yet." }),
     fused,
     careful: {
+      note: CAREFUL_NOTE,
       answer: "",
       status: "",
       steps,
@@ -456,9 +617,11 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
   } catch (e) {
     if (e instanceof DraftRejectedError)
       result.interp = { ...e.exchange, reading: null, standing: null };
+    applyFusedGrade("most");
     log(`INTERPRETER: draft rejected before anything proceeded`);
     log(`  ${String((e as Error).message)}`);
     result.careful = {
+    note: CAREFUL_NOTE,
       answer:
         "No answer: the draft was rejected by mechanical validation, so nothing proceeded.",
       status: "draft rejected before anything ran",
@@ -510,6 +673,10 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
   });
   result.interp.model = proposal.proposedBy;
   result.interp.reading = readingLine(proposal.content);
+  applyFusedGrade(
+    proposal.content.asks.find((a) => a.kind === "ranking")?.direction ??
+      "most",
+  );
 
   if (!coherent(proposal.content)) {
     log(`GATE: incoherent draft; nothing proceeds`);
@@ -519,6 +686,7 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
       tone: "stop",
     });
     result.careful = {
+    note: CAREFUL_NOTE,
       answer: "No answer: the draft failed coherence checks.",
       status: "incoherent draft, nothing ran",
       steps,
@@ -552,6 +720,7 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
       tone: "stop",
     });
     result.careful = {
+    note: CAREFUL_NOTE,
       answer:
         `No answer yet: before reading a single row, the gate routes the ambiguity back to you. ` +
         unresolved
@@ -786,13 +955,21 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
     },
   );
   if (rankingRefused) {
-    result.why.lines.unshift(
-      "The two machines did not answer the same question.",
-      `The fused machine cannot read your words — it ships its built-in "most frequent" report whatever you ask. The careful machine read the question and declined what nothing registered can establish.`,
-    );
-    result.fused.verdict = `it did not notice you asked something else — ${result.fused.verdict}`;
+    if (useLive) {
+      result.why.lines.unshift(
+        "One machine declined this question; the other answered it anyway.",
+        "Same model on both sides. Unharnessed, it answered from page one with nothing checkable; as the careful machine's interpreter, its reading was certified and then refused — nothing registered can establish it.",
+      );
+    } else {
+      result.why.lines.unshift(
+        "The two machines did not answer the same question.",
+        `The fused machine cannot read your words — it ships its built-in "most frequent" report whatever you ask. The careful machine read the question and declined what nothing registered can establish.`,
+      );
+      result.fused.verdict = `it did not notice you asked something else — ${result.fused.verdict}`;
+    }
   }
   result.careful = {
+    note: CAREFUL_NOTE,
     answer: render(claims, verdicts, disposition),
     status: `${disposition.disposition} · vouched for by ${gateCert.content.standing.kind === "requester-confirmed" ? "the requester's own record" : "admission policy (nobody confirmed the reading)"} · question read by ${useLive ? "a real model" : "the stub"} · re-checks from its records: ${rep.ok ? "yes" : "BROKEN"}`,
     steps,
@@ -974,7 +1151,7 @@ details summary:hover { color:var(--accent-strong); }
 <header class="masthead">
   <div class="mstatus">localhost &middot; interpreter: ${LIVE ? `${MODEL_LABEL} (live)` : "offline stub (no key)"}</div>
   <h1>The Careful Machine</h1>
-  <p class="mdesc">Two architectures. Same question. Same evidence. <code>Code computes every number; the difference is what each system is allowed to claim.</code></p>
+  <p class="mdesc">Two architectures. Same question, same evidence${LIVE ? ", same model" : ""}. <code>The difference is what each system is allowed to claim.</code></p>
 </header>
 
 <div class="lab" id="explab">Experiment</div>
@@ -1013,7 +1190,7 @@ details summary:hover { color:var(--accent-strong); }
     </span>
     <label class="ck"><input type="checkbox" id="cap">Cap careful read at 500</label>
   </div>
-  <div class="drawnote">Standing records who vouched for the model's reading of your words; it never grants coverage. The cap affects the careful machine only. Each live run sends your question to ${MODEL_LABEL} (one small API call) &mdash; the model drafts the reading, never the numbers.</div>
+  <div class="drawnote">Standing records who vouched for the model's reading of your words; it never grants coverage. The cap affects the careful machine only. Each live run makes two small API calls to ${MODEL_LABEL} &mdash; one as the fused machine (it answers everything itself), one as the careful machine's interpreter (it drafts the reading, never the numbers).</div>
 </div>
 
 <div class="drawer" id="evdrawer" hidden>
@@ -1042,15 +1219,15 @@ details summary:hover { color:var(--accent-strong); }
     <div class="answer fused">
       <div class="cardhead"><h2>Fused machine</h2><span class="tone" id="fusedTone"></span></div>
       <div class="badgefull" id="fusedBadge"></div>
-      <div class="qnote">never reads your question &mdash; ships its one built-in report</div>
+      <div class="qnote" id="fusedNote"></div>
       <div class="out" id="fusedOut"></div>
       <div class="verdictline" id="fusedVerdict"></div>
-      <details><summary>Inspect run</summary><div class="cardsub">An ordinary pipeline: fetch &rarr; count &rarr; template. No AI anywhere; your words are never read.</div><ol class="flowchart" id="fusedFlow"></ol></details>
+      <details><summary>Inspect run</summary><div class="cardsub" id="fusedSub"></div><ol class="flowchart" id="fusedFlow"></ol></details>
     </div>
     <div class="answer careful">
       <div class="cardhead"><h2>Careful machine</h2><span class="tone" id="carefulTone"></span></div>
       <div class="badgefull" id="carefulBadge"></div>
-      <div class="qnote">reads your question &mdash; claims only what its records support</div>
+      <div class="qnote" id="carefulNote"></div>
       <div class="out" id="carefulOut"></div>
       <div class="verdictline" id="carefulStatus"></div>
       <details><summary>Inspect run</summary><div class="cardsub">The interpreter drafts a reading of your words; code certifies, reads, counts, records. See the full exchange below.</div><ol class="flowchart" id="carefulFlow"></ol></details>
@@ -1062,7 +1239,7 @@ details summary:hover { color:var(--accent-strong); }
     <div id="whySub"></div>
     <details id="cmpev"><summary>Compare evidence</summary>
       <div id="whyLines"></div>
-      <div class="whyfoot">No model invented these numbers; both sides are plain code counting rows.</div>
+      <div class="whyfoot" id="whyfoot"></div>
       <div class="whybars">
         <div class="barset" id="whyFused"></div>
         <div class="barset" id="whyCareful"></div>
@@ -1349,32 +1526,47 @@ function setBadge(machine, toneEl, fullEl, badge) {
 }
 
 // Every string below renders via textContent: model output can never become HTML.
-function renderExchange(el, interp) {
+function renderExchange(el, r) {
+  var interp = r.interp;
   el.textContent = "";
   var h4 = function (t) { var h = document.createElement("h4"); h.textContent = t; el.appendChild(h); };
   var pre = function (t) { var p = document.createElement("pre"); p.textContent = t; el.appendChild(p); return p; };
   var para = function (t) { var p = document.createElement("p"); p.textContent = t; el.appendChild(p); };
+  var schemaDetails = function (label, schema) {
+    var det = document.createElement("details");
+    var sum = document.createElement("summary");
+    sum.textContent = label;
+    det.appendChild(sum);
+    var sp = document.createElement("pre");
+    sp.textContent = schema;
+    det.appendChild(sp);
+    el.appendChild(det);
+  };
+  if (r.fused.exchange) {
+    h4("Fused machine call \\u2014 sent to " + r.fused.exchange.model);
+    para("The whole job in one generation: the question plus page one of the data went in; whatever came back shipped. No validation, no retry, no record.");
+    pre("POST " + r.fused.exchange.request.url + "\\n" +
+      "tool_choice: " + r.fused.exchange.request.toolChoice + "\\n\\n" +
+      "system:\\n" + r.fused.exchange.request.system);
+    schemaDetails("full user message (question + the 500 rows it was handed)", r.fused.exchange.request.userMessage);
+    schemaDetails("answer tool schema (sent with the request)", r.fused.exchange.request.toolSchema);
+    h4("Fused machine reply \\u2014 verbatim, shipped as-is");
+    pre(r.fused.exchange.rawReply);
+  }
   if (interp.mode === "stub") {
     para("Offline stub \\u2014 no network call was made. A deterministic stand-in emits the same fixed reading whatever you type; switch the interpreter to \\u201CLive model\\u201D to have your words actually read.");
     h4("Draft emitted by " + interp.model);
     if (interp.attempts.length) pre(interp.attempts[0].rawDraft);
   } else {
-    h4("Sent to " + (interp.model || MODEL_LABEL));
+    h4("Careful interpreter call \\u2014 sent to " + (interp.model || MODEL_LABEL));
     if (interp.request) {
       pre("POST " + interp.request.url + "\\n" +
         "tool_choice: " + interp.request.toolChoice + "\\n\\n" +
         "system:\\n" + interp.request.system + "\\n\\n" +
         "user:\\n" + interp.request.userMessage);
-      var det = document.createElement("details");
-      var sum = document.createElement("summary");
-      sum.textContent = "draft_contract tool schema (sent with the request)";
-      det.appendChild(sum);
-      var sp = document.createElement("pre");
-      sp.textContent = interp.request.toolSchema;
-      det.appendChild(sp);
-      el.appendChild(det);
+      schemaDetails("draft_contract tool schema (sent with the request)", interp.request.toolSchema);
     }
-    h4("Received \\u2014 raw draft, verbatim");
+    h4("Careful interpreter reply \\u2014 raw draft, verbatim");
     interp.attempts.forEach(function (a, i) {
       var d = document.createElement("div");
       d.className = "attempt " + a.verdict;
@@ -1433,7 +1625,7 @@ async function runNow(ranLabel) {
   spinner.className = "spin";
   $("#status").appendChild(spinner);
   $("#status").appendChild(document.createTextNode(
-    liveMode() ? "Sending the question to " + MODEL_LABEL + "\\u2026" : "Running\\u2026"));
+    liveMode() ? "Running both machines through " + MODEL_LABEL + "\\u2026" : "Running\\u2026"));
   var ctrl = new AbortController();
   var timer = setTimeout(function () { ctrl.abort(); }, 60000);
   try {
@@ -1456,7 +1648,15 @@ async function runNow(ranLabel) {
     var interpLabel = r.interp.mode === "live" ? (r.interp.model || "live model") : "offline stub";
     $("#ranline").textContent = (ranLabel || "Custom settings") + " \\u00b7 " + interpLabel + " \\u00b7 " + standing + " \\u00b7 " + cov;
     renderReading(r.interp);
-    renderExchange($("#xbody"), r.interp);
+    renderExchange($("#xbody"), r);
+    $("#fusedNote").textContent = r.fused.note;
+    $("#carefulNote").textContent = r.careful.note;
+    $("#fusedSub").textContent = r.fused.exchange
+      ? "The same model, no harness: handed the question and page one of the data, and its one generation shipped as the answer."
+      : "An ordinary pipeline: fetch \\u2192 count \\u2192 template. No AI anywhere; your words are never read.";
+    $("#whyfoot").textContent = r.fused.exchange
+      ? "The bars are code-counted from what each side actually read; the fused machine's own numbers came from the model and may not even match its bars."
+      : "No model invented these numbers; both sides are plain code counting rows.";
 
     var tl = r.truth.slice();
     $("#truth").textContent = tl.slice(1).map(function (l) { return l.replace(/^\\s+/, ""); }).join("\\n");
