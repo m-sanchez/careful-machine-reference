@@ -81,7 +81,9 @@ function groundTruth(rows: PaymentRow[]): string[] {
   const inQ = rows.filter(
     (r) => r.at >= QUARTER.from && r.at <= QUARTER.to && r.kind === "external",
   );
-  const top = rank(inQ)[0];
+  const ranked = rank(inQ);
+  const top = ranked[0];
+  const bottom = ranked[ranked.length - 1];
   const quarterRows = rows.filter(
     (r) => r.at >= QUARTER.from && r.at <= QUARTER.to,
   );
@@ -96,6 +98,7 @@ function groundTruth(rows: PaymentRow[]): string[] {
     `  genuinely new this quarter: ${genuinelyNew.join(", ") || "none"}`,
     `  seen before the quarter: ${oldOnes.join(", ") || "none"}`,
     `  true top payee, full quarter, external: ${top ? `${top.counterparty} (${top.payments})` : "none"}`,
+    `  true least-frequent payee, full quarter, external: ${bottom ? `${bottom.counterparty} (${bottom.payments})` : "none"}`,
   ];
 }
 
@@ -782,6 +785,11 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
       unclaimed: proposal.content.unclaimedText,
     },
   );
+  if (rankingRefused)
+    result.why.lines.unshift(
+      "The two machines did not answer the same question.",
+      `The fused machine cannot read your words — it ships its built-in "most frequent" report whatever you ask. The careful machine read the question and declined what nothing registered can establish.`,
+    );
   result.careful = {
     answer: render(claims, verdicts, disposition),
     status: `${disposition.disposition} · vouched for by ${gateCert.content.standing.kind === "requester-confirmed" ? "the requester's own record" : "admission policy (nobody confirmed the reading)"} · question read by ${useLive ? "a real model" : "the stub"} · re-checks from its records: ${rep.ok ? "yes" : "BROKEN"}`,
@@ -892,6 +900,7 @@ textarea { width:100%; border:1px solid var(--border); border-radius:6px; backgr
 .tone.ok { background:var(--careful); } .tone.warn { background:#B0801F; }
 .tone.bad, .tone.stop { background:var(--fused); }
 .badgefull { font:11.5px var(--mono); color:var(--muted); margin:6px 0 0; }
+.qnote { font:11px/1.4 var(--sans); color:var(--muted); font-style:italic; margin:4px 0 0; }
 .answer .out { font:15px/1.55 var(--sans); margin:10px 0 0; max-width:62ch; }
 .verdictline { font:600 13px/1.5 var(--sans); margin:10px 0 0; }
 .answer details { margin:10px 0 0; }
@@ -1031,6 +1040,7 @@ details summary:hover { color:var(--accent-strong); }
     <div class="answer fused">
       <div class="cardhead"><h2>Fused machine</h2><span class="tone" id="fusedTone"></span></div>
       <div class="badgefull" id="fusedBadge"></div>
+      <div class="qnote">never reads your question &mdash; ships its one built-in report</div>
       <div class="out" id="fusedOut"></div>
       <div class="verdictline" id="fusedVerdict"></div>
       <details><summary>Inspect run</summary><div class="cardsub">An ordinary pipeline: fetch &rarr; count &rarr; template. No AI anywhere; your words are never read.</div><ol class="flowchart" id="fusedFlow"></ol></details>
@@ -1038,6 +1048,7 @@ details summary:hover { color:var(--accent-strong); }
     <div class="answer careful">
       <div class="cardhead"><h2>Careful machine</h2><span class="tone" id="carefulTone"></span></div>
       <div class="badgefull" id="carefulBadge"></div>
+      <div class="qnote">reads your question &mdash; claims only what its records support</div>
       <div class="out" id="carefulOut"></div>
       <div class="verdictline" id="carefulStatus"></div>
       <details><summary>Inspect run</summary><div class="cardsub">The interpreter drafts a reading of your words; code certifies, reads, counts, records. See the full exchange below.</div><ol class="flowchart" id="carefulFlow"></ol></details>
