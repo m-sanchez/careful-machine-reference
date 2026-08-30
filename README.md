@@ -25,7 +25,7 @@ including hostile and over-confident ones; the architecture is what decides.
 ```bash
 npm install        # dev-only: typescript + @types/node
 npm run demo       # both machines answer the question; ground truth printed first
-npm run serve      # local web UI at http://127.0.0.1:8787 (live model when key set)
+npm run serve      # local web UI at http://127.0.0.1:8787 (see below for the live model)
 npm test           # node's built-in runner; no runtime dependencies
 npm run typecheck  # the compile-time gates live here too
 ```
@@ -73,8 +73,16 @@ ANTHROPIC_API_KEY=sk-... npm run demo:live -- "your own question"
 `ANTHROPIC_BASE_URL` is honoured. The key is read from the environment for
 the one request and never stored or printed. `npm test` stays fully offline.
 
+The web UI defaults to the live interpreter when the key is set (an
+"Offline stub" toggle sits next to Run). Nothing is sent on page load — a
+run happens only when you press Run or pick a scenario, and each run makes
+exactly one small API call. The "Model exchange" panel on every result shows
+verbatim what was sent (system prompt, question, tool schema), every raw
+draft that came back, and what mechanical validation did with each one. The
+key stays in the server process; the browser only ever sees the drafts.
+
 ## Non-goals
 
-No LLM calls, no persistence beyond in-memory records, no config system, no
-CLI polish, no framework extraction. If a change makes this less readable in
-one sitting, it is the wrong change.
+No LLM calls outside the one opt-in interpreter above, no persistence beyond
+in-memory records, no config system, no CLI polish, no framework extraction.
+If a change makes this less readable in one sitting, it is the wrong change.

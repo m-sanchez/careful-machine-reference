@@ -40,6 +40,19 @@ const ASK_TO_CLAIM: Record<Ask["kind"], ClaimKind | null> = {
 
 export function selectOperations(asks: Ask[]): Selection[] {
   return asks.map((ask) => {
+    // payments-ranking v1 establishes MOST-frequent only; a least-frequent
+    // ask has no registered operation and must be refused, not approximated
+    if (ask.kind === "ranking" && ask.direction === "least")
+      return {
+        askId: ask.askId,
+        cannotExecute: {
+          ground: "no registered operation establishes least-frequent ranking",
+          nearestServiceable: [
+            "payments-ranking v1 (most-frequent, window-bounded)",
+            "payments-presence v1 (window-bounded presence)",
+          ],
+        },
+      };
     const claimKind = ASK_TO_CLAIM[ask.kind];
     const op = claimKind ? OPERATIONS.find((o) => o.establishes.includes(claimKind)) : undefined;
     if (op) return { askId: ask.askId, op };

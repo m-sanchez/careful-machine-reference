@@ -35,6 +35,8 @@ export function deriveDisposition(input: DispositionInput): DispositionGrounds {
   if (!input.executed && input.scopeConflicts.length)
     return answer("outside-authority", "ask the scope owner to extend the grant");
   if (!input.executed) return answer("cannot-execute", "none");
+  if (certified.length === 0 && struck.length === 0 && input.cannotExecuteGrounds.length)
+    return answer("cannot-execute", "ask for the nearest thing this build CAN check");
   if (certified.length === 0 && struck.length > 0)
     return answer("unsupported", "widen the read or weaken the claim");
   if (input.coveragePartial) return answer("degraded", "run the full read");

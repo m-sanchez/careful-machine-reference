@@ -135,6 +135,32 @@ test("standing integrity: only the requester record mints requester-confirmed", 
   assert.equal(admitted.content.standing.kind, "policy-admitted"); // policy never mints confirmed
 });
 
+test("a least-frequent ranking ask is refused by the registry and disposes as cannot-execute", () => {
+  const sel = selectOperations([
+    {
+      askId: "a-least",
+      kind: "ranking",
+      qualifiers: [],
+      sourceSpan: "paid the least often this quarter",
+      resolution: { state: "resolved" },
+      direction: "least",
+    },
+  ]);
+  assert.ok(sel[0]!.cannotExecute);
+  assert.match(sel[0]!.cannotExecute!.ground, /least-frequent/);
+  const d = deriveDisposition({
+    contractCertified: true,
+    unresolvedAmbiguity: false,
+    cannotExecuteGrounds: [sel[0]!.cannotExecute!.ground],
+    scopeConflicts: [],
+    executed: true,
+    coveragePartial: false,
+    verdicts: [],
+  });
+  assert.equal(d.disposition, "cannot-execute");
+  assert.match(d.pathToYes, /nearest thing this build CAN check/);
+});
+
 test("an answer replays: every reference the record names resolves", () => {
   const p = pipeline();
   const ans = buildAnswerRecord(p.gateCert, p.scopeCert, p.exec, p.ledger, p.verdicts, p.disposition);

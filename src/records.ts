@@ -89,6 +89,7 @@ export interface Ask {
   qualifiers: string[];
   sourceSpan: string; // the words in requestText that produced this ask
   resolution: Resolution;
+  direction?: "most" | "least"; // ranking asks: which end was asked for
 }
 
 export interface RequestContract {

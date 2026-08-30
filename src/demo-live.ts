@@ -25,7 +25,7 @@ const store = buildStore();
 
 console.log("QUESTION:", QUESTION, "\n");
 console.log("calling the live interpreter...");
-const proposal = await draftContractLive(QUESTION);
+const { proposal } = await draftContractLive(QUESTION);
 console.log(`\nPROPOSAL (drafted by ${proposal.proposedBy}, a real model):`);
 console.log(`  subjects      [${proposal.content.subjects.join(", ")}]`);
 console.log(
@@ -46,11 +46,15 @@ if (!coherent(proposal.content))
 
 // surviving contract-relevant ambiguity goes back to the requester BEFORE
 // anything executes, whatever the stakes (ch. 3)
-const unresolved = proposal.content.asks.filter((a) => a.resolution.state === "unresolved");
+const unresolved = proposal.content.asks.filter(
+  (a) => a.resolution.state === "unresolved",
+);
 if (unresolved.length) {
   console.log(`\nGATE: clarification-needed; nothing executes.`);
   for (const a of unresolved)
-    console.log(`  unresolved ask ${a.askId} ("${a.sourceSpan}"): the requester must say what they meant`);
+    console.log(
+      `  unresolved ask ${a.askId} ("${a.sourceSpan}"): the requester must say what they meant`,
+    );
   console.log(`  path to yes: answer the clarifying question, then re-run`);
   process.exit(0);
 }
@@ -105,7 +109,14 @@ const ledger: Ledger = {
   evidence: new Map([[evidence.evidenceId, evidence]]),
   results: new Map([[ranking.resultId, ranking]]),
 };
-const claims = proposeClaims(ranking);
+// a refused ranking ask (e.g. least-frequent) must not yield ranking claims
+const rankingAsk = gateCert.content.contract.asks.find(
+  (a) => a.kind === "ranking",
+);
+const rankingRefused =
+  rankingAsk != null &&
+  selections.find((s) => s.askId === rankingAsk.askId)?.cannotExecute != null;
+const claims = rankingRefused ? [] : proposeClaims(ranking);
 const verdicts = verifyAll(claims, ledger);
 const disposition = deriveDisposition({
   contractCertified: true,

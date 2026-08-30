@@ -40,6 +40,10 @@ const GLOSSES: [string, string][] = [
     "no registered operation establishes first-appearance",
     'this build has no approved way to check "first time ever paid", so it declines that part instead of guessing',
   ],
+  [
+    "no registered operation establishes least-frequent ranking",
+    'this build can rank most-frequent only; it has no approved way to establish "least often", so it declines instead of answering a different question',
+  ],
 ];
 const gloss = (s: string) => GLOSSES.reduce((acc, [from, to]) => acc.split(from).join(to), s);
 

@@ -31,6 +31,7 @@ export function draftContract(requestText: string): Proposal<RequestContract> {
       qualifiers: ["external payments only"],
       sourceSpan: "paid most often this quarter",
       resolution: { state: "resolved" },
+      direction: "most",
     },
     {
       askId: nextId("a"),

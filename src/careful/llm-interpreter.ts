@@ -59,6 +59,12 @@ const CONTRACT_TOOL = {
               type: "string",
               enum: ["total", "ranking", "presence", "first-appearance"],
             },
+            direction: {
+              type: "string",
+              enum: ["most", "least"],
+              description:
+                "REQUIRED when kind is 'ranking': which end of the frequency ranking the requester asked for",
+            },
             qualifiers: { type: "array", items: { type: "string" } },
             sourceSpan: {
               type: "string",
@@ -108,6 +114,35 @@ interface RawDraft {
   unclaimedText: unknown;
 }
 
+// the full exchange, on the record: what was sent (no secrets — the key is a
+// header and never copied here), what came back verbatim, and what the
+// mechanical validator did with each draft
+export interface InterpreterAttempt {
+  rawDraft: string; // verbatim tool_use input — model output, untrusted text
+  verdict: "accepted" | "rejected";
+  rejectReason?: string;
+}
+export interface InterpreterExchange {
+  mode: "live" | "stub";
+  model: string;
+  request: {
+    url: string;
+    system: string;
+    userMessage: string;
+    toolChoice: string;
+    toolSchema: string;
+  } | null; // null = offline stub, no network call
+  attempts: InterpreterAttempt[];
+}
+
+export class DraftRejectedError extends Error {
+  readonly exchange: InterpreterExchange;
+  constructor(message: string, exchange: InterpreterExchange) {
+    super(message);
+    this.exchange = exchange;
+  }
+}
+
 const isStrings = (v: unknown): v is string[] =>
   Array.isArray(v) && v.every((x) => typeof x === "string");
 const isDate = (v: unknown): v is string =>
@@ -142,6 +177,14 @@ function validate(
     const st = a?.resolution?.state;
     if (st !== "resolved" && st !== "assumed" && st !== "unresolved")
       throw new Error(`draft rejected: ask ${i} resolution`);
+    if (
+      a.kind === "ranking" &&
+      a.direction !== "most" &&
+      a.direction !== "least"
+    )
+      throw new Error(
+        `draft rejected: ask ${i} direction (ranking asks must state most|least)`,
+      );
     return {
       askId: proposalAskId(),
       kind: a.kind,
@@ -154,6 +197,7 @@ function validate(
               default: String(a.resolution.default ?? "unnamed"),
             }
           : { state: st },
+      ...(a.kind === "ranking" ? { direction: a.direction } : {}),
     };
   });
   if (!isStrings(raw.unclaimedText))
@@ -225,41 +269,63 @@ async function callOnce(requestText: string, apiKey: string, model: string) {
   return { input: toolUse.input, model: body.model || model };
 }
 
-export async function draftContractLive(
-  requestText: string,
-): Promise<Proposal<RequestContract>> {
+export async function draftContractLive(requestText: string): Promise<{
+  proposal: Proposal<RequestContract>;
+  exchange: InterpreterExchange;
+}> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey)
     throw new Error(
       "ANTHROPIC_API_KEY is not set; the live interpreter needs it (never stored, never printed)",
     );
   const model = process.env.ANTHROPIC_MODEL || DEFAULT_MODEL;
+  const exchange: InterpreterExchange = {
+    mode: "live",
+    model,
+    request: {
+      // userinfo stripped: a credentialled ANTHROPIC_BASE_URL must not reach the page
+      url: API_URL.replace(/\/\/[^@/]*@/, "//"),
+      system: SYSTEM,
+      userMessage: requestText,
+      toolChoice: 'forced: { type: "tool", name: "draft_contract" }',
+      toolSchema: JSON.stringify(CONTRACT_TOOL, null, 2),
+    },
+    attempts: [],
+  };
 
   // a rejected draft gets exactly one fresh draft; then the refusal stands
   let lastErr: unknown;
   for (let attempt = 1; attempt <= 2; attempt++) {
     const got = await callOnce(requestText, apiKey, model);
+    exchange.model = got.model; // the actual model identity, on the record
+    const rawDraft = JSON.stringify(got.input, null, 2);
     try {
       const fields = validate(normalize(got.input));
+      exchange.attempts.push({ rawDraft, verdict: "accepted" });
       return {
-        proposalId: proposalId(),
-        proposedBy: got.model, // the actual model identity, on the record
-        content: {
-          contractId: `c-live-${++contractSeq}`,
-          requestText,
-          ...fields,
+        proposal: {
+          proposalId: proposalId(),
+          proposedBy: got.model,
+          content: {
+            contractId: `c-live-${++contractSeq}`,
+            requestText,
+            ...fields,
+          },
+          basis: [requestText],
         },
-        basis: [requestText],
+        exchange,
       };
     } catch (e) {
-      // rejection is the mechanism working; show what the model actually
-      // proposed so the refusal is inspectable (model output, nothing secret)
-      console.error(
-        `rejected draft (attempt ${attempt}), verbatim:`,
-        JSON.stringify(got.input, null, 2),
-      );
+      // rejection is the mechanism working; the verbatim draft stays on the
+      // record so the refusal is inspectable (model output, nothing secret)
+      exchange.attempts.push({
+        rawDraft,
+        verdict: "rejected",
+        rejectReason: String((e as Error).message),
+      });
+      console.error(`rejected draft (attempt ${attempt}), verbatim:`, rawDraft);
       lastErr = e;
     }
   }
-  throw lastErr;
+  throw new DraftRejectedError(String((lastErr as Error).message), exchange);
 }
