@@ -785,11 +785,13 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
       unclaimed: proposal.content.unclaimedText,
     },
   );
-  if (rankingRefused)
+  if (rankingRefused) {
     result.why.lines.unshift(
       "The two machines did not answer the same question.",
       `The fused machine cannot read your words — it ships its built-in "most frequent" report whatever you ask. The careful machine read the question and declined what nothing registered can establish.`,
     );
+    result.fused.verdict = `it did not notice you asked something else — ${result.fused.verdict}`;
+  }
   result.careful = {
     answer: render(claims, verdicts, disposition),
     status: `${disposition.disposition} · vouched for by ${gateCert.content.standing.kind === "requester-confirmed" ? "the requester's own record" : "admission policy (nobody confirmed the reading)"} · question read by ${useLive ? "a real model" : "the stub"} · re-checks from its records: ${rep.ok ? "yes" : "BROKEN"}`,
