@@ -171,7 +171,12 @@ interface RunResult {
 // one human sentence naming the reading a run certified; built from the
 // contract, so it moves when a live draft moves
 function readingLine(c: RequestContract): string {
-  const asks = c.asks.map((a) => `${a.kind} ← "${a.sourceSpan}"`).join("  +  ");
+  const asks = c.asks
+    .map(
+      (a) =>
+        `${a.kind}${a.direction ? ` (${a.direction})` : ""} ← "${a.sourceSpan}"`,
+    )
+    .join("  +  ");
   return `${asks}  ·  window ${c.window.from}..${c.window.to} (${c.window.origin})  ·  subjects [${c.subjects.join(", ")}]`;
 }
 
