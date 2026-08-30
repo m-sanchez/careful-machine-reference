@@ -626,7 +626,7 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
     log(`INTERPRETER: draft rejected before anything proceeded`);
     log(`  ${String((e as Error).message)}`);
     result.careful = {
-    note: CAREFUL_NOTE,
+      note: CAREFUL_NOTE,
       answer:
         "No answer: the draft was rejected by mechanical validation, so nothing proceeded.",
       status: "draft rejected before anything ran",
@@ -691,7 +691,7 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
       tone: "stop",
     });
     result.careful = {
-    note: CAREFUL_NOTE,
+      note: CAREFUL_NOTE,
       answer: "No answer: the draft failed coherence checks.",
       status: "incoherent draft, nothing ran",
       steps,
@@ -725,7 +725,7 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
       tone: "stop",
     });
     result.careful = {
-    note: CAREFUL_NOTE,
+      note: CAREFUL_NOTE,
       answer:
         `No answer yet: before reading a single row, the gate routes the ambiguity back to you. ` +
         unresolved
@@ -1058,8 +1058,13 @@ textarea { width:100%; border:1px solid var(--border); border-radius:6px; backgr
 #stale { font:12.5px var(--sans); color:var(--warning); background:var(--warning-soft); border-radius:6px; padding:7px 12px; margin:12px 0 0; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
 #stalebtn { font:600 12px var(--sans); color:#fff; background:var(--warning); border-radius:5px; padding:6px 10px; }
 /* results */
-#results { margin-top:22px; }
+#results { margin-top:22px; position:relative; }
 #results:focus, #why:focus { outline:none; }
+body.running #results > :not(#runoverlay) { opacity:.35; }
+body.running #results { pointer-events:none; }
+#runoverlay { position:absolute; inset:0; display:flex; align-items:flex-start; justify-content:center; padding-top:110px; z-index:10; }
+#runoverlay .panel { background:#fff; border:1px solid var(--border); border-radius:8px; padding:13px 22px; font:600 13.5px var(--sans); color:var(--ink); display:flex; gap:10px; align-items:center; box-shadow:0 4px 18px rgba(33,27,18,.14); }
+.spin.big { width:16px; height:16px; border-width:3px; }
 #placeholder { margin-top:22px; padding:34px 20px; text-align:center; color:var(--muted); font:13.5px var(--sans); border:1px dashed var(--border); border-radius:8px; }
 #ranline { font:11.5px var(--mono); color:var(--muted); margin:0 0 2px; }
 #readingline { font:11.5px/1.6 var(--mono); color:var(--muted); margin:0 0 10px; }
@@ -1213,6 +1218,7 @@ details summary:hover { color:var(--accent-strong); }
 
 <div id="placeholder" hidden>Choose an experiment above, then run it.</div>
 <div id="results" tabindex="-1" hidden>
+  <div id="runoverlay" hidden><div class="panel"><span class="spin big"></span><span id="runoverlaytext"></span></div></div>
   <div id="ranline"></div>
   <div id="readingline"></div>
   <div id="evwarn" hidden></div>
@@ -1629,8 +1635,19 @@ async function runNow(ranLabel) {
   var spinner = document.createElement("span");
   spinner.className = "spin";
   $("#status").appendChild(spinner);
-  $("#status").appendChild(document.createTextNode(
-    liveMode() ? "Running both machines through " + MODEL_LABEL + "\\u2026" : "Running\\u2026"));
+  var runMsg = liveMode() ? "Running both machines through " + MODEL_LABEL + "\\u2026" : "Running\\u2026";
+  $("#status").appendChild(document.createTextNode(runMsg));
+  document.body.classList.add("running");
+  if (!$("#results").hidden) {
+    $("#runoverlaytext").textContent = runMsg;
+    $("#runoverlay").hidden = false;
+  } else {
+    $("#placeholder").textContent = "";
+    var ps = document.createElement("span");
+    ps.className = "spin";
+    $("#placeholder").appendChild(ps);
+    $("#placeholder").appendChild(document.createTextNode(runMsg));
+  }
   var ctrl = new AbortController();
   var timer = setTimeout(function () { ctrl.abort(); }, 60000);
   try {
@@ -1715,10 +1732,13 @@ async function runNow(ranLabel) {
   } catch (e) {
     $("#status").className = "error";
     $("#status").textContent = "Request failed \\u2014 server may be down; retry. (" + e + ")";
+    if ($("#results").hidden) $("#placeholder").textContent = "Choose an experiment above, then run it.";
     setRunLabel();
   } finally {
     clearTimeout(timer);
     running = false;
+    document.body.classList.remove("running");
+    $("#runoverlay").hidden = true;
     $("#go").disabled = false;
     document.querySelectorAll(".segbtn, .miniact").forEach(function (c) { c.disabled = false; });
   }
