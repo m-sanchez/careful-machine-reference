@@ -21,7 +21,12 @@ import { verifyAll, type Ledger } from "./careful/verify.ts";
 import { deriveDisposition } from "./careful/dispose.ts";
 import { proposeClaims, render } from "./careful/narrate.ts";
 import { buildAnswerRecord, replay } from "./careful/replay.ts";
-import type { PaymentRow, Proposal, RequestContract, ScopeConflict } from "./records.ts";
+import type {
+  PaymentRow,
+  Proposal,
+  RequestContract,
+  ScopeConflict,
+} from "./records.ts";
 
 const PORT = Number(process.env.PORT || 8787);
 const LIVE = Boolean(process.env.ANTHROPIC_API_KEY);
@@ -72,7 +77,9 @@ function groundTruth(rows: PaymentRow[]): string[] {
     (r) => r.at >= QUARTER.from && r.at <= QUARTER.to && r.kind === "external",
   );
   const top = rank(inQ)[0];
-  const quarterRows = rows.filter((r) => r.at >= QUARTER.from && r.at <= QUARTER.to);
+  const quarterRows = rows.filter(
+    (r) => r.at >= QUARTER.from && r.at <= QUARTER.to,
+  );
   const prior = new Set(
     rows.filter((r) => r.at < QUARTER.from).map((r) => r.counterparty),
   );
@@ -133,28 +140,55 @@ interface RunResult {
 // step works as documented, and no step owns the question being answered
 function fusedSteps(store: PaymentRow[]): Step[] {
   const population = store.filter(
-    (r) => r.account === "acct-1187" && r.at >= QUARTER.from && r.at <= QUARTER.to,
+    (r) =>
+      r.account === "acct-1187" && r.at >= QUARTER.from && r.at <= QUARTER.to,
   );
   const page = cappedRead(store, "acct-1187");
   const ranked = rank(page.filter((r) => r.kind === "external"));
-  const top2 = ranked.slice(0, 2).map((r) => `${r.counterparty} ${r.payments}`).join(", ");
+  const top2 = ranked
+    .slice(0, 2)
+    .map((r) => `${r.counterparty} ${r.payments}`)
+    .join(", ");
   const firstSeen = new Map<string, string>();
   for (const r of [...population].sort((a, b) => (a.at < b.at ? -1 : 1)))
     if (!firstSeen.has(r.counterparty)) firstSeen.set(r.counterparty, r.at);
-  const newOnes = [...firstSeen.entries()].filter(([, at]) => at >= "2025-05-01").map(([c]) => c);
+  const newOnes = [...firstSeen.entries()]
+    .filter(([, at]) => at >= "2025-05-01")
+    .map(([c]) => c);
   return [
-    { t: "READ", d: `page one: ${page.length} rows — its own pagination default`, tone: "info" },
+    {
+      t: "READ",
+      d: `page one: ${page.length} rows — its own pagination default`,
+      tone: "info",
+    },
     { t: "COUNT", d: `code ranks the page: ${top2}`, tone: "info" },
-    { t: "NARRATE", d: `the page's winner is sold as the QUARTER's winner; no coverage stamp exists to stop it`, tone: "bad" },
-    { t: "NOVELTY", d: newOnes.length ? `window-only "new": ${newOnes.join(", ")}; anything before ${QUARTER.from} is invisible` : `window-only "new": none found`, tone: "bad" },
-    { t: "SHIP", d: `no record of what was read, no claim check, nobody owned "new"; every box worked`, tone: "bad" },
+    {
+      t: "NARRATE",
+      d: `the page's winner is sold as the QUARTER's winner; no coverage stamp exists to stop it`,
+      tone: "bad",
+    },
+    {
+      t: "NOVELTY",
+      d: newOnes.length
+        ? `window-only "new": ${newOnes.join(", ")}; anything before ${QUARTER.from} is invisible`
+        : `window-only "new": none found`,
+      tone: "bad",
+    },
+    {
+      t: "SHIP",
+      d: `no record of what was read, no claim check, nobody owned "new"; every box worked`,
+      tone: "bad",
+    },
   ];
 }
 
 // the fused machine judged against the ground truth of THIS evidence: its
 // code never changes, so whether it happens to be right is a fact about the
 // data, and the verdict says which world we are in
-function fusedJudgement(store: PaymentRow[]): { verdict: string; badge: Badge } {
+function fusedJudgement(store: PaymentRow[]): {
+  verdict: string;
+  badge: Badge;
+} {
   const truthRows = store.filter(
     (r) => r.at >= QUARTER.from && r.at <= QUARTER.to && r.kind === "external",
   );
@@ -176,7 +210,10 @@ function fusedJudgement(store: PaymentRow[]): { verdict: string; badge: Badge } 
     .filter(([, at]) => at >= "2025-05-01")
     .map(([c]) => c);
   if (!truthTop || !capTop)
-    return { verdict: "no rows to rank.", badge: { tone: "bad", label: "✗ nothing to say" } };
+    return {
+      verdict: "no rows to rank.",
+      badge: { tone: "bad", label: "✗ nothing to say" },
+    };
   const topRight = capTop.counterparty === truthTop.counterparty;
   const falseNew = claimedNew.filter((c) => prior.has(c));
   const parts: string[] = [];
@@ -192,7 +229,10 @@ function fusedJudgement(store: PaymentRow[]): { verdict: string; badge: Badge } 
   const badge: Badge = !topRight
     ? { tone: "bad", label: "✗ WRONG on this data" }
     : falseNew.length
-      ? { tone: "warn", label: '◐ right about the top — by luck; still wrong about "new"' }
+      ? {
+          tone: "warn",
+          label: '◐ right about the top — by luck; still wrong about "new"',
+        }
       : { tone: "ok", label: "✓ right — by luck of the cap" };
   return { verdict: parts.join("; ") + ".", badge };
 }
@@ -208,13 +248,17 @@ function monthGrid(store: PaymentRow[]): MonthGrid {
   const inQ = store.filter(
     (r) => r.at >= QUARTER.from && r.at <= QUARTER.to && r.kind === "external",
   );
-  const names = rank(inQ).slice(0, 4).map((r) => r.counterparty);
+  const names = rank(inQ)
+    .slice(0, 4)
+    .map((r) => r.counterparty);
   return {
     months: ["April", "May", "June"],
     parties: names.map((name) => ({
       name,
       counts: months.map(
-        (m) => inQ.filter((r) => r.counterparty === name && r.at.startsWith(m)).length,
+        (m) =>
+          inQ.filter((r) => r.counterparty === name && r.at.startsWith(m))
+            .length,
       ),
     })),
   };
@@ -226,11 +270,18 @@ function makeWhy(
   store: PaymentRow[],
   outcome:
     | { kind: "stopped"; reason: string }
-    | { kind: "ran"; readRows: PaymentRow[]; complete: boolean; itemsRead: number; population: number | "unknown" },
+    | {
+        kind: "ran";
+        readRows: PaymentRow[];
+        complete: boolean;
+        itemsRead: number;
+        population: number | "unknown";
+      },
   extras?: { conflicts?: ScopeConflict[]; unclaimed?: string[] },
 ): WhyBlock {
   const population = store.filter(
-    (r) => r.account === "acct-1187" && r.at >= QUARTER.from && r.at <= QUARTER.to,
+    (r) =>
+      r.account === "acct-1187" && r.at >= QUARTER.from && r.at <= QUARTER.to,
   );
   const page = cappedRead(store, "acct-1187");
   const fusedBars = topBars(page);
@@ -241,7 +292,8 @@ function makeWhy(
   const fTop = fusedBars[0];
   const grid = monthGrid(store);
   const hostileLine =
-    extras && ((extras.unclaimed?.length ?? 0) > 0 || (extras.conflicts?.length ?? 0) > 0)
+    extras &&
+    ((extras.unclaimed?.length ?? 0) > 0 || (extras.conflicts?.length ?? 0) > 0)
       ? `The question also said ${extras.unclaimed?.length ? `"${extras.unclaimed[0]}"` : "more than it was allowed to"} — ` +
         (extras.conflicts?.length
           ? `the SCOPE check dropped ${extras.conflicts.map((c) => c.element).join(", ")} by name; `
@@ -324,7 +376,12 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
     skipped: parsed.skipped,
     why: makeWhy(store, { kind: "stopped", reason: "nothing has run yet." }),
     fused,
-    careful: { answer: "", status: "", steps, badge: { tone: "stop", label: "■ not run" } },
+    careful: {
+      answer: "",
+      status: "",
+      steps,
+      badge: { tone: "stop", label: "■ not run" },
+    },
     transcript: "",
   };
   const done = () => ((result.transcript = out.join("\n")), result);
@@ -349,10 +406,21 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
         "No answer: the draft was rejected by mechanical validation, so nothing proceeded.",
       status: "draft rejected before anything ran",
       steps,
-      badge: { tone: "stop", label: "■ declined — draft rejected, nothing ran" },
+      badge: {
+        tone: "stop",
+        label: "■ declined — draft rejected, nothing ran",
+      },
     };
-    steps.push({ t: "INTERPRETER", d: "draft rejected by mechanical validation; nothing proceeded", tone: "stop" });
-    result.why = makeWhy(store, { kind: "stopped", reason: "the model's draft failed validation, so nothing was allowed to run." });
+    steps.push({
+      t: "INTERPRETER",
+      d: "draft rejected by mechanical validation; nothing proceeded",
+      tone: "stop",
+    });
+    result.why = makeWhy(store, {
+      kind: "stopped",
+      reason:
+        "the model's draft failed validation, so nothing was allowed to run.",
+    });
     return done();
   }
   log(`PROPOSAL (drafted by ${proposal.proposedBy}):`);
@@ -376,21 +444,38 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
   log(`  unclaimedText [${proposal.content.unclaimedText.join(" | ")}]`);
   steps.push({
     t: "PROPOSAL",
-    d: `${proposal.proposedBy} · subjects [${proposal.content.subjects.join(", ")}]` +
-      (proposal.content.unclaimedText.length ? ` · unclaimed: "${proposal.content.unclaimedText.join("; ")}"` : ""),
+    d:
+      `${proposal.proposedBy} · subjects [${proposal.content.subjects.join(", ")}]` +
+      (proposal.content.unclaimedText.length
+        ? ` · unclaimed: "${proposal.content.unclaimedText.join("; ")}"`
+        : ""),
     tone: "info",
   });
 
   if (!coherent(proposal.content)) {
     log(`GATE: incoherent draft; nothing proceeds`);
-    steps.push({ t: "GATE", d: "incoherent draft; nothing proceeds", tone: "stop" });
+    steps.push({
+      t: "GATE",
+      d: "incoherent draft; nothing proceeds",
+      tone: "stop",
+    });
     result.careful = {
       answer: "No answer: the draft failed coherence checks.",
       status: "incoherent draft, nothing ran",
       steps,
-      badge: { tone: "stop", label: "■ declined — incoherent draft, nothing ran" },
+      badge: {
+        tone: "stop",
+        label: "■ declined — incoherent draft, nothing ran",
+      },
     };
-    result.why = makeWhy(store, { kind: "stopped", reason: "the draft was incoherent, so nothing was allowed to run." }, { unclaimed: proposal.content.unclaimedText });
+    result.why = makeWhy(
+      store,
+      {
+        kind: "stopped",
+        reason: "the draft was incoherent, so nothing was allowed to run.",
+      },
+      { unclaimed: proposal.content.unclaimedText },
+    );
     return done();
   }
   const unresolved = proposal.content.asks.filter(
@@ -410,14 +495,23 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
     result.careful = {
       answer:
         `No answer yet: before reading a single row, the gate routes the ambiguity back to you. ` +
-        unresolved.map((a) => `What did you mean by "${a.sourceSpan}"?`).join(" "),
+        unresolved
+          .map((a) => `What did you mean by "${a.sourceSpan}"?`)
+          .join(" "),
       status: "stopped at the gate to ask what you meant",
       steps,
-      badge: { tone: "stop", label: "■ declined — asked for clarification instead of guessing" },
+      badge: {
+        tone: "stop",
+        label: "■ declined — asked for clarification instead of guessing",
+      },
     };
     result.why = makeWhy(
       store,
-      { kind: "stopped", reason: "it stopped at the gate to ask what you meant, before reading a single row." },
+      {
+        kind: "stopped",
+        reason:
+          "it stopped at the gate to ask what you meant, before reading a single row.",
+      },
       { unclaimed: proposal.content.unclaimedText },
     );
     return done();
@@ -437,7 +531,11 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
   log(
     `GATE: decision=${gateCert.decision}, standing=${gateCert.content.standing.kind}`,
   );
-  steps.push({ t: "GATE", d: `${gateCert.decision} · standing ${gateCert.content.standing.kind}`, tone: "ok" });
+  steps.push({
+    t: "GATE",
+    d: `${gateCert.decision} · standing ${gateCert.content.standing.kind}`,
+    tone: "ok",
+  });
 
   const scopeCert = effectiveScope(gateCert, GRANTS, "2025-07-04");
   log(
@@ -448,8 +546,16 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
   );
   steps.push(
     scopeCert.content.conflicts.length
-      ? { t: "SCOPE", d: `narrowed to [${scopeCert.content.inScope.subjects.join(", ")}] · fell out: ${scopeCert.content.conflicts.map((c) => c.element).join(", ")}`, tone: "warn" }
-      : { t: "SCOPE", d: `accepted · in scope [${scopeCert.content.inScope.subjects.join(", ")}]`, tone: "ok" },
+      ? {
+          t: "SCOPE",
+          d: `narrowed to [${scopeCert.content.inScope.subjects.join(", ")}] · fell out: ${scopeCert.content.conflicts.map((c) => c.element).join(", ")}`,
+          tone: "warn",
+        }
+      : {
+          t: "SCOPE",
+          d: `accepted · in scope [${scopeCert.content.inScope.subjects.join(", ")}]`,
+          tone: "ok",
+        },
   );
   const selections = selectOperations(gateCert.content.contract.asks);
   for (const s of selections.filter((x) => x.cannotExecute))
@@ -458,8 +564,16 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
     const refused = selections.filter((x) => x.cannotExecute);
     steps.push(
       refused.length
-        ? { t: "REGISTRY", d: `cannot-execute: ${refused.map((s2) => s2.cannotExecute!.ground).join("; ")}`, tone: "warn" }
-        : { t: "REGISTRY", d: "every ask has a registered operation", tone: "ok" },
+        ? {
+            t: "REGISTRY",
+            d: `cannot-execute: ${refused.map((s2) => s2.cannotExecute!.ground).join("; ")}`,
+            tone: "warn",
+          }
+        : {
+            t: "REGISTRY",
+            d: "every ask has a registered operation",
+            tone: "ok",
+          },
     );
   }
   const interception: InterceptionLog = { entries: [] };
@@ -476,8 +590,16 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
   );
   steps.push(
     evidence.coverage.complete
-      ? { t: "EVIDENCE", d: `read ${evidence.coverage.itemsRead} of ${evidence.coverage.populationCount} · complete, stamped`, tone: "ok" }
-      : { t: "EVIDENCE", d: `read ${evidence.coverage.itemsRead} of ${evidence.coverage.populationCount} · PARTIAL, stamped honestly`, tone: "warn" },
+      ? {
+          t: "EVIDENCE",
+          d: `read ${evidence.coverage.itemsRead} of ${evidence.coverage.populationCount} · complete, stamped`,
+          tone: "ok",
+        }
+      : {
+          t: "EVIDENCE",
+          d: `read ${evidence.coverage.itemsRead} of ${evidence.coverage.populationCount} · PARTIAL, stamped honestly`,
+          tone: "warn",
+        },
   );
 
   const ledger: Ledger = {
@@ -492,14 +614,20 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
     const struck = verdicts.filter((x) => x.outcome === "struck");
     steps.push(
       struck.length
-        ? { t: "CLERK", d: `struck ${struck.map((v) => v.claimId).join(", ")}: ${struck[0]!.failingCheck}`, tone: "warn" }
+        ? {
+            t: "CLERK",
+            d: `struck ${struck.map((v) => v.claimId).join(", ")}: ${struck[0]!.failingCheck}`,
+            tone: "warn",
+          }
         : { t: "CLERK", d: `all proposed claims certified`, tone: "ok" },
     );
   }
   const disposition = deriveDisposition({
     contractCertified: true,
     unresolvedAmbiguity: false,
-    cannotExecuteGrounds: selections.filter((s) => s.cannotExecute).map((s) => s.cannotExecute!.ground),
+    cannotExecuteGrounds: selections
+      .filter((s) => s.cannotExecute)
+      .map((s) => s.cannotExecute!.ground),
     scopeConflicts: scopeCert.content.conflicts,
     executed: true,
     coveragePartial: !evidence.coverage.complete,
@@ -534,19 +662,39 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
     claims: new Set(claims.map((c) => c.claimId)),
   });
   log(`REPLAY: ${ans.answerId} every reference resolves = ${rep.ok}`);
-  steps.push({ t: "REPLAY", d: rep.ok ? "every reference resolves" : "BROKEN: " + rep.missing.join(", "), tone: rep.ok ? "ok" : "stop" });
+  steps.push({
+    t: "REPLAY",
+    d: rep.ok
+      ? "every reference resolves"
+      : "BROKEN: " + rep.missing.join(", "),
+    tone: rep.ok ? "ok" : "stop",
+  });
 
   // the careful card's own badge — honest to its own semantics
   const truthTop = rank(
-    store.filter((r) => r.at >= QUARTER.from && r.at <= QUARTER.to && r.kind === "external"),
+    store.filter(
+      (r) =>
+        r.at >= QUARTER.from && r.at <= QUARTER.to && r.kind === "external",
+    ),
   )[0];
-  const rankedValue = ranking.value as { counterparty: string; payments: number }[];
+  const rankedValue = ranking.value as {
+    counterparty: string;
+    payments: number;
+  }[];
   const carefulTop = rankedValue[0];
   let badge: Badge;
   if (!rep.ok) badge = { tone: "bad", label: "✗ replay broken" };
   else if (!evidence.coverage.complete)
-    badge = { tone: "warn", label: "◐ honest partial — claim scoped to the rows it read" };
-  else if (disposition.disposition === "answered" && truthTop && carefulTop && carefulTop.counterparty === truthTop.counterparty)
+    badge = {
+      tone: "warn",
+      label: "◐ honest partial — claim scoped to the rows it read",
+    };
+  else if (
+    disposition.disposition === "answered" &&
+    truthTop &&
+    carefulTop &&
+    carefulTop.counterparty === truthTop.counterparty
+  )
     badge = { tone: "ok", label: "✓ matches ground truth" };
   else badge = { tone: "ok", label: "✓ answered from its records" };
 
@@ -559,7 +707,10 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
       itemsRead: evidence.coverage.itemsRead,
       population: evidence.coverage.populationCount,
     },
-    { conflicts: scopeCert.content.conflicts, unclaimed: proposal.content.unclaimedText },
+    {
+      conflicts: scopeCert.content.conflicts,
+      unclaimed: proposal.content.unclaimedText,
+    },
   );
   result.careful = {
     answer: render(claims, verdicts, disposition),
@@ -620,6 +771,8 @@ h1,h2,h3 { margin:0; font-weight:600; }
 #go:hover { background:var(--accent-strong); }
 #status { font:12.5px var(--sans); color:var(--muted); }
 #status.error { color:var(--fused); font-weight:600; }
+.spin { display:inline-block; width:12px; height:12px; border:2px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin .8s linear infinite; vertical-align:-2px; margin-right:7px; }
+@keyframes spin { to { transform:rotate(360deg); } }
 /* drawers */
 .drawer { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:14px 16px; margin:12px 0 0; }
 .drawer .lab { margin-bottom:8px; display:block; }
@@ -724,7 +877,7 @@ details summary:hover { color:var(--accent-strong); }
 #mobilebar button { width:100%; padding:11px; font:600 14px var(--sans); background:var(--warning); color:#fff; border-radius:7px; }
 @media (max-width:640px){ body.isStale #mobilebar { display:block; } body.isStale { padding-bottom:70px; } }
 /* motion */
-@media (prefers-reduced-motion: reduce){ html { scroll-behavior:auto; } * { transition:none !important; } }
+@media (prefers-reduced-motion: reduce){ html { scroll-behavior:auto; } * { transition:none !important; animation:none !important; } .spin { display:none; } }
 </style></head><body>
 <div class="wrap">
 <header class="masthead">
@@ -1097,7 +1250,12 @@ async function runNow(ranLabel) {
   $("#go").disabled = true;
   document.querySelectorAll(".segbtn, .miniact").forEach(function (c) { c.disabled = true; });
   $("#status").className = "";
-  $("#status").textContent = $("#live").checked ? "Interpreting with live model\\u2026" : "Running\\u2026";
+  $("#status").textContent = "";
+  var spinner = document.createElement("span");
+  spinner.className = "spin";
+  $("#status").appendChild(spinner);
+  $("#status").appendChild(document.createTextNode(
+    $("#live").checked ? "Calling the live model \\u2014 a few seconds\\u2026" : "Running\\u2026"));
   var ctrl = new AbortController();
   var timer = setTimeout(function () { ctrl.abort(); }, 60000);
   try {
