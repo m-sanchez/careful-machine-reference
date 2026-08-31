@@ -1,5 +1,11 @@
 # The Careful Machine: reference implementation
 
+![TypeScript](https://img.shields.io/badge/TypeScript-erasable_syntax-3178C6?logo=typescript&logoColor=white)
+![Node](https://img.shields.io/badge/node-%3E%3D22.6-5FA04E?logo=nodedotjs&logoColor=white)
+![Dependencies](https://img.shields.io/badge/runtime_dependencies-0-B45309)
+![Tests](https://img.shields.io/badge/book_claims_tested-13-2F6F44)
+![License](https://img.shields.io/badge/license-MIT-6E6E6E)
+
 [Recorded runs and live tamper bench](https://miguelsanchez.co.uk/careful-machine) ·
 [Working rules](https://miguelsanchez.co.uk/ethics) ·
 [More tools](https://github.com/m-sanchez)
