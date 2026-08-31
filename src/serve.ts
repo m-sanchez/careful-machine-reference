@@ -2011,7 +2011,7 @@ details pre, .tech pre { font:12px/1.6 var(--mono); white-space:pre-wrap; overfl
 
   <section class="band" id="b4">
     <div class="bandhead"><span class="bno">Band 4</span><h2>The outcome</h2>
-      <div class="bgloss">Graded against the code-computed answer key &mdash; visible to you, hidden from both machines.</div></div>
+      <div class="bgloss">Graded against the code-computed answer key &mdash; a plain counting loop over the exact rows you can edit above; visible to you, hidden from both machines. Every verdict in this band is written by code. The model's own words appear only in Band 2.</div></div>
     <div class="score" id="score"></div>
     <div class="outcards">
       <div class="ocard f">
