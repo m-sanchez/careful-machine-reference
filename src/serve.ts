@@ -1473,7 +1473,7 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
         anyWrong
           ? "The fused machine had everything and still got it wrong. Nothing was withheld; the failure is the generation itself."
           : "The fused machine had everything and happens to be right — and there is still no way to check it.",
-        "Same model, same data, same question. Unharnessed, it asserted numbers nobody can audit; the careful machine's numbers re-check from its records.",
+        "A language model does not run a counter — it emits a number shaped like a count. The ordering often survives; the exact number is invention. The careful machine's numbers come from a loop, and the model there is never asked for a number.",
         ...result.why.lines,
       ];
     }
