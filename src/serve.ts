@@ -488,6 +488,11 @@ function makeWhy(
     lines.push(
       `And the two ${page.length}-row reads are not even the same rows; only one side can tell you which rows it read.`,
     );
+  } else if (!cTop) {
+    lines.push(
+      `The certified window contained no rows at all; the careful machine read nothing and claimed nothing.`,
+      `The fused machine answered anyway. An empty window is a recorded fact on one side and invisible on the other.`,
+    );
   }
   if (hostileLine) lines.push(hostileLine);
   return { fusedRead, carefulRead, lines, monthGrid: grid };
@@ -1429,6 +1434,11 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
     badge = {
       tone: "stop",
       label: "■ declined: no registered operation for that ask",
+    };
+  else if (disposition.disposition === "unsupported")
+    badge = {
+      tone: "stop",
+      label: "■ declined: nothing certifiable in the certified window",
     };
   else if (!evidence.coverage.complete)
     badge = {
@@ -2743,6 +2753,7 @@ createServer(async (req, res) => {
         });
         res.end(JSON.stringify(result));
       } catch (e) {
+        console.error((e as Error).stack);
         res.writeHead(500, { "content-type": "text/plain" });
         res.end(String((e as Error).message));
       }

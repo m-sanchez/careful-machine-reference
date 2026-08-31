@@ -9,6 +9,9 @@ export function proposeClaims(ranking: DerivedResult): ProposedClaim[] {
   // ranking claim EVEN when the result's coverage is partial (hedging beside
   // it). The clerk, not the stub, decides what survives.
   const ranked = ranking.value as { counterparty: string; payments: number }[];
+  // an empty read yields no claims at all; the disposition, not the narrator,
+  // says what that means
+  if (!ranked.length) return [];
   const top = ranked[0]!;
   const mk = (kind: ProposedClaim["kind"], assertion: string, coverageClaimed: "complete" | "partial"): ProposedClaim => ({
     claimId: `pc-${++n}`,
