@@ -78,7 +78,7 @@ toggle sits next to Run). In live mode the SAME model runs on both sides:
 as the fused machine it is handed the question plus page one of the data
 and one unvalidated generation ships as the answer; as the careful
 machine's interpreter it drafts the reading only, and plain code does the
-rest. Nothing is sent on page load — a run happens only when you press Run
+rest. Nothing is sent on page load; a run happens only when you press Run
 or pick a scenario, and each live run makes two small API calls (one per
 machine). The "Model exchange" panel on every result shows both calls
 verbatim: what was sent (system prompts, question, data, tool schemas),
