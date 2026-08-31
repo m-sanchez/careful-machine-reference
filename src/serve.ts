@@ -671,7 +671,9 @@ function carefulGradeRows(
     claimed: null,
     expected: expNew,
     verdict: "declined",
-    note: opts.noveltyGround ?? "no certified claim",
+    note:
+      opts.noveltyGround ??
+      'nothing registered can certify "never paid before" — silence, not a guess',
   };
   if (opts.refusedGround)
     return [
