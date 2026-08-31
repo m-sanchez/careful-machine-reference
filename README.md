@@ -3,7 +3,7 @@
 ![TypeScript](https://img.shields.io/badge/TypeScript-erasable_syntax-3178C6?logo=typescript&logoColor=white)
 ![Node](https://img.shields.io/badge/node-%3E%3D22.6-5FA04E?logo=nodedotjs&logoColor=white)
 ![Dependencies](https://img.shields.io/badge/runtime_dependencies-0-B45309)
-![Tests](https://img.shields.io/badge/book_claims_tested-13-2F6F44)
+[![CI](https://img.shields.io/github/actions/workflow/status/m-sanchez/careful-machine-reference/test.yml?branch=main&label=CI)](https://github.com/m-sanchez/careful-machine-reference/actions/workflows/test.yml)
 ![License](https://img.shields.io/badge/license-MIT-6E6E6E)
 
 [Recorded runs and live tamper bench](https://miguelsanchez.co.uk/careful-machine) ·
@@ -11,7 +11,7 @@
 [More tools](https://github.com/m-sanchez)
 
 Companion code for *The Careful Machine: Engineering AI Systems That Cannot
-Certify Themselves* (Miguel Sanchez, 2026). One question is answered twice:
+Certify Themselves* (Miguel Sanchez, forthcoming, 2026). One question is answered twice:
 
 > Who has this account paid most often this quarter, and are any of those
 > counterparties new?
@@ -26,8 +26,10 @@ Certify Themselves* (Miguel Sanchez, 2026). One question is answered twice:
   evidence with coverage (ch. 7-8), derived results (ch. 9), the claim
   turnstile (ch. 11), the routed no (ch. 13), and replay (ch. 17).
 
-This is a demonstration, not a framework: hold the whole repo in your head in
-an afternoon. The "model" is a deterministic stub that emits proposals,
+This is a demonstration, not a framework: hold `src/fused` and `src/careful`
+in your head in an afternoon. `src/serve.ts` and `src/web` are the local demo
+UI, deliberately kept out of that claim - the page is the exhibit, not the
+argument. The "model" is a deterministic stub that emits proposals,
 including hostile and over-confident ones; the architecture is what decides.
 
 ## Run
@@ -61,7 +63,9 @@ Each core test is a book claim made executable:
 | renderer cannot leak a struck claim | ch. 11: narration is constrained to the certified set |
 | the answer record replays with every reference resolving | ch. 17: an answer is a join over records |
 
-All identifiers and numbers are invented and illustrative.
+Eleven of the suite's fourteen tests are the book claims above; the other
+three pin plumbing (fixtures, type gates). All identifiers and numbers are
+invented and illustrative.
 
 ## Running with a real model (opt-in)
 
@@ -102,3 +106,15 @@ original no-AI pipeline and the interpreter is the deterministic stub.
 No LLM calls outside the one opt-in interpreter above, no persistence beyond
 in-memory records, no config system, no CLI polish, no framework extraction.
 If a change makes this less readable in one sitting, it is the wrong change.
+
+## Decisions
+
+- **Reject, never repair.** A malformed draft is refused with the reason
+  named. Repairing it would launder the malformation into the record, and
+  the record is the product.
+- **The model never runs inside the verifier.** Drafts are input; plain
+  code decides what they become. That boundary is what makes the recorded
+  runs replayable and the tamper bench honest.
+- **Zero runtime dependencies.** Every guarantee here is carried by code a
+  reader can finish; a dependency would move part of the argument outside
+  the afternoon.
