@@ -1,5 +1,9 @@
 # The Careful Machine: reference implementation
 
+[Recorded runs and live tamper bench](https://miguelsanchez.co.uk/careful-machine) ·
+[Working rules](https://miguelsanchez.co.uk/ethics) ·
+[More tools](https://github.com/m-sanchez)
+
 Companion code for *The Careful Machine: Engineering AI Systems That Cannot
 Certify Themselves* (Miguel Sanchez, 2026). One question is answered twice:
 
