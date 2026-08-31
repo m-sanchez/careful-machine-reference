@@ -119,7 +119,7 @@ function keyFacts(rows: PaymentRow[]): KeyFacts {
 function groundTruth(rows: PaymentRow[]): string[] {
   const k = keyFacts(rows);
   return [
-    `GROUND TRUTH over these ${k.rowsTotal.toLocaleString("en-GB")} rows (${k.rowsInQuarter.toLocaleString("en-GB")} fall in the quarter) — visible to you, hidden from both machines:`,
+    `GROUND TRUTH over these ${k.rowsTotal.toLocaleString("en-GB")} rows (${k.rowsInQuarter.toLocaleString("en-GB")} fall in the quarter); visible to you, hidden from both machines:`,
     `  genuinely new this quarter: ${k.genuinelyNew.join(", ") || "none"}`,
     `  seen before the quarter: ${k.seenBefore.join(", ") || "none"}`,
     `  true top payee, full quarter, external: ${k.top ? `${k.top.name} (${k.top.n})` : "none"}`,
@@ -283,7 +283,7 @@ function fusedSteps(store: PaymentRow[]): Step[] {
   return [
     {
       t: "READ",
-      d: `page one: ${page.length} rows — its own pagination default`,
+      d: `page one: ${page.length} rows: its own pagination default`,
       tone: "info",
     },
     { t: "COUNT", d: `code ranks the page: ${top2}`, tone: "info" },
@@ -371,9 +371,9 @@ function fusedJudgement(store: PaymentRow[]): {
     : wrongBits.length
       ? {
           tone: "warn",
-          label: `◐ right about the top — by luck; still wrong about ${wrongBits.join(" and ")}`,
+          label: `◐ right about the top by luck; still wrong about ${wrongBits.join(" and ")}`,
         }
-      : { tone: "ok", label: "✓ right — by luck of the cap" };
+      : { tone: "ok", label: "✓ right, by luck of the cap" };
   return { verdict: parts.join("; ") + ".", badge };
 }
 
@@ -426,7 +426,7 @@ function makeWhy(
   const page = cappedRead(store, "acct-1187");
   const fusedBars = topBars(page);
   const fusedRead = {
-    title: `FUSED read: its own page one — the first ${page.length} rows it happened to fetch (unrecorded)`,
+    title: `FUSED read: its own page one: the first ${page.length} rows it happened to fetch (unrecorded)`,
     bars: fusedBars,
   };
   const fTop = fusedBars[0];
@@ -434,7 +434,7 @@ function makeWhy(
   const hostileLine =
     extras &&
     ((extras.unclaimed?.length ?? 0) > 0 || (extras.conflicts?.length ?? 0) > 0)
-      ? `The question also said ${extras.unclaimed?.length ? `"${extras.unclaimed[0]}"` : "more than it was allowed to"} — ` +
+      ? `The question also said ${extras.unclaimed?.length ? `"${extras.unclaimed[0]}"` : "more than it was allowed to"}; ` +
         (extras.conflicts?.length
           ? `the SCOPE check dropped ${extras.conflicts.map((c) => c.element).join(", ")} by name; `
           : `the careful machine set it aside as words nobody acted on; `) +
@@ -455,8 +455,8 @@ function makeWhy(
   const cTop = carefulBars[0];
   const carefulRead = {
     title: outcome.complete
-      ? `CAREFUL read: all ${outcome.itemsRead} of ${outcome.population} rows — and it recorded that`
-      : `CAREFUL read: ${outcome.itemsRead} of the quarter's ${outcome.population} rows — capped, and SAID so`,
+      ? `CAREFUL read: all ${outcome.itemsRead} of ${outcome.population} rows, and it recorded that`
+      : `CAREFUL read: ${outcome.itemsRead} of the quarter's ${outcome.population} rows: capped, and SAID so`,
     bars: carefulBars,
   };
   const lines: string[] = [];
@@ -466,7 +466,7 @@ function makeWhy(
         `Both name ${fTop.name} this time; on this evidence the truncation happens not to matter.`,
       );
       lines.push(
-        `Same broken read on the fused side — today it got lucky. Only one machine can prove which day it is.`,
+        `Same broken read on the fused side; today it got lucky. Only one machine can prove which day it is.`,
       );
     } else {
       lines.push(
@@ -475,7 +475,7 @@ function makeWhy(
       const april = page.filter((r) => r.at.slice(5, 7) === "04").length;
       if (april > page.length / 2)
         lines.push(
-          `The file is date-ordered and page one is mostly April — ${fTop.name}'s month. A machine that silently reads page one is really answering "who won April?".`,
+          `The file is date-ordered and page one is mostly April, ${fTop.name}'s month. A machine that silently reads page one is really answering "who won April?".`,
         );
       lines.push(
         `Same data, same question. The only difference is what each machine read; the careful one wrote that down, the fused one could not even say.`,
@@ -486,7 +486,7 @@ function makeWhy(
       `This time BOTH machines read only part. The careful one said so, cut its claim down to "within the rows read", and pointed at the fuller read still available; the fused one sold its ${page.length} rows as the whole quarter.`,
     );
     lines.push(
-      `And the two ${page.length}-row reads are not even the same rows — only one side can tell you which rows it read.`,
+      `And the two ${page.length}-row reads are not even the same rows; only one side can tell you which rows it read.`,
     );
   }
   if (hostileLine) lines.push(hostileLine);
@@ -521,7 +521,7 @@ function contractView(c: RequestContract): ContractView {
 }
 
 // scorecard rows for the live fused machine, from its own asserted fields;
-// a right value still grades "lucky" — nothing behind it can be verified
+// a right value still grades "lucky"; nothing behind it can be verified
 function fusedGradeLiveRows(
   k: KeyFacts,
   direction: "most" | "least",
@@ -626,7 +626,7 @@ function fusedGradeStubRows(store: PaymentRow[], k: KeyFacts): GradeRow[] {
   ];
 }
 
-// scorecard rows for the careful machine — verdicts extend to declined /
+// scorecard rows for the careful machine: verdicts extend to declined /
 // scoped-partial because an honest machine has more outcomes than right/wrong
 function carefulGradeRows(
   k: KeyFacts,
@@ -673,7 +673,7 @@ function carefulGradeRows(
     verdict: "declined",
     note:
       opts.noveltyGround ??
-      'nothing registered can certify "never paid before" — silence, not a guess',
+      'nothing registered can certify "never paid before"; it stays silent instead of guessing',
   };
   if (opts.refusedGround)
     return [
@@ -699,7 +699,7 @@ function carefulGradeRows(
       {
         claim: "ranked-payee",
         claimed: t
-          ? `${t.name} — within the ${opts.partial.itemsRead} rows read`
+          ? `${t.name}, within the ${opts.partial.itemsRead} rows read`
           : null,
         expected: expTxt,
         verdict: "scoped-partial",
@@ -759,11 +759,11 @@ function markClimax(checkpoints: Checkpoint[]): void {
 }
 
 const FUSED_NOTE_LIVE =
-  "the same model, unharnessed — one generation reads, counts, and narrates; nothing checkable";
+  "the same model, unharnessed: one generation reads, counts, and narrates; nothing checkable";
 const FUSED_NOTE_STUB =
-  "no AI — ships its one built-in report; never reads your question";
+  "no AI: ships its one built-in report; never reads your question";
 const CAREFUL_NOTE =
-  "reads your question — claims only what its records support";
+  "reads your question; claims only what its records support";
 
 // grade the live fused machine's own asserted fields against ground truth;
 // direction comes from the careful machine's drafted reading of the question
@@ -799,7 +799,7 @@ function gradeFusedLive(
     );
     wrong = true;
   } else if (fields.rankedCountNamed == null) {
-    // a missing count is an unchecked claim, not a wrong one — matches the
+    // a missing count is an unchecked claim, not a wrong one; matches the
     // scorecard's "no-claim" verdict for the same field
     parts.push(
       `right payee (${expected.counterparty}); named no count the key can check`,
@@ -824,7 +824,7 @@ function gradeFusedLive(
           (x) => x.trim().toLowerCase() === c.toLowerCase(),
         ),
     );
-    // names the quarter never saw at all — invented parties are wrong too,
+    // names the quarter never saw at all: invented parties are wrong too,
     // so this test is set equality, same as the scorecard's sameSet
     const invented = fields.newCounterpartiesNamed.filter(
       (c) =>
@@ -836,7 +836,7 @@ function gradeFusedLive(
     }
     if (invented.length) {
       parts.push(
-        `names ${invented.join(", ")} as new — the quarter never saw them`,
+        `names ${invented.join(", ")} as new; the quarter never saw them`,
       );
       wrong = true;
     }
@@ -854,7 +854,7 @@ function gradeFusedLive(
       ? { tone: "warn", label: "◐ made no checkable claim" }
       : {
           tone: "warn",
-          label: "◐ right this time — and unverifiable every time",
+          label: "◐ right this time, unverifiable every time",
         };
   return { verdict, badge };
 }
@@ -865,13 +865,13 @@ function fusedLiveSteps(pageLen: number, population: number): Step[] {
     {
       t: "READ",
       d: full
-        ? `handed everything: all ${population} rows, history included — no excuse lives in the data`
-        : `handed page one: ${pageLen} of ${population} rows — the integration's default fetch; it was not told`,
+        ? `handed everything: all ${population} rows, history included; no excuse lives in the data`
+        : `handed page one: ${pageLen} of ${population} rows, the integration's default fetch; it was not told`,
       tone: full ? "info" : "warn",
     },
     {
       t: "MODEL",
-      d: "one generation read the question, did the counting, and wrote the answer — no intermediate is recorded",
+      d: "one generation read the question, did the counting, and wrote the answer; no intermediate is recorded",
       tone: "bad",
     },
     {
@@ -907,7 +907,7 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
     handed: { rowsHanded: pageLen, rowsTotal: store.length, suspectSpans: [] },
   };
   // live mode: the fused machine is the same model, unharnessed. The fair
-  // fight is the default — it is handed EVERY row, history included, so any
+  // fight is the default: it is handed EVERY row, history included, so any
   // failure is the generation's own. The cap re-imposes the silent 500-row
   // page-one default on BOTH machines at once.
   let fusedLive: { fields: FusedFields; exchange: FusedExchange } | null = null;
@@ -934,7 +934,7 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
       fused.fields = fusedLive.fields;
     } catch (e) {
       const msg = String((e as Error).message);
-      fused.answer = `(the fused call failed — ${msg})`;
+      fused.answer = `(the fused call failed: ${msg})`;
       fused.verdict = "no answer shipped this run.";
       fused.badge = { tone: "stop", label: "■ call failed" };
       fused.steps = [{ t: "MODEL", d: `call failed: ${msg}`, tone: "stop" }];
@@ -1032,7 +1032,7 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
       status: "draft rejected before anything ran",
       badge: {
         tone: "stop",
-        label: "■ declined — draft rejected, nothing ran",
+        label: "■ declined: draft rejected, nothing ran",
       },
       checkpoints: [
         {
@@ -1052,7 +1052,7 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
       ] satisfies Checkpoint[],
       grade: carefulGradeRows(key, {
         direction: "most",
-        declinedAll: "draft rejected — nothing ran",
+        declinedAll: "draft rejected; nothing ran",
         noveltyGround: null,
       }),
       disposition: {
@@ -1149,7 +1149,7 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
       status: "incoherent draft, nothing ran",
       badge: {
         tone: "stop",
-        label: "■ declined — incoherent draft, nothing ran",
+        label: "■ declined: incoherent draft, nothing ran",
       },
       checkpoints: [
         validatorCheckpoint,
@@ -1170,7 +1170,7 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
       ] satisfies Checkpoint[],
       grade: carefulGradeRows(key, {
         direction: drawnDirection,
-        declinedAll: "incoherent draft — nothing ran",
+        declinedAll: "incoherent draft; nothing ran",
         noveltyGround: null,
       }),
       disposition: { disposition: "declined", pathToYes: "re-ask" },
@@ -1208,7 +1208,7 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
       status: "stopped at the gate to ask what you meant",
       badge: {
         tone: "stop",
-        label: "■ declined — asked for clarification instead of guessing",
+        label: "■ declined: asked for clarification instead of guessing",
       },
       checkpoints: [
         validatorCheckpoint,
@@ -1411,7 +1411,7 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
     tone: rep.ok ? "ok" : "stop",
   });
 
-  // the careful card's own badge — honest to its own semantics
+  // the careful card's own badge: honest to its own semantics
   const truthTop = rank(
     store.filter(
       (r) =>
@@ -1428,12 +1428,12 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
   else if (disposition.disposition === "cannot-execute")
     badge = {
       tone: "stop",
-      label: "■ declined — no registered operation for that ask",
+      label: "■ declined: no registered operation for that ask",
     };
   else if (!evidence.coverage.complete)
     badge = {
       tone: "warn",
-      label: "◐ honest partial — claim scoped to the rows it read",
+      label: "◐ honest partial: claim scoped to the rows it read",
     };
   else if (
     disposition.disposition === "answered" &&
@@ -1459,10 +1459,10 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
     },
   );
   // the fair fight: fused was handed every row, so the page-one story does
-  // not apply — the failure (or luck) is the generation itself
+  // not apply; the failure (or luck) is the generation itself
   if (useLive && fusedLive && !req.cap) {
     result.why.fusedRead = {
-      title: `FUSED was handed: all ${store.length.toLocaleString("en-GB")} rows, history included — and it cannot say what it read`,
+      title: `FUSED was handed: all ${store.length.toLocaleString("en-GB")} rows, history included, and it cannot say what it read`,
       bars: topBars(
         store.filter((r) => r.at >= QUARTER.from && r.at <= QUARTER.to),
       ),
@@ -1472,8 +1472,8 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
       result.why.lines = [
         anyWrong
           ? "The fused machine had everything and still got it wrong. Nothing was withheld; the failure is the generation itself."
-          : "The fused machine had everything and happens to be right — and there is still no way to check it.",
-        "A language model does not run a counter — it emits a number shaped like a count. The ordering often survives; the exact number is invention. The careful machine's numbers come from a loop, and the model there is never asked for a number.",
+          : "The fused machine had everything and happens to be right, and there is still no way to check it.",
+        "A language model does not run a counter; it emits a number shaped like a count. The ordering often survives; the exact number is invention. The careful machine's numbers come from a loop, and the model there is never asked for a number.",
         ...result.why.lines,
       ];
     }
@@ -1482,14 +1482,14 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
     if (useLive) {
       result.why.lines.unshift(
         "One machine declined this question; the other answered it anyway.",
-        "Same model on both sides. Unharnessed, it answered with nothing checkable; as the careful machine's interpreter, its reading was certified and then refused — nothing registered can establish it.",
+        "Same model on both sides. Unharnessed, it answered with nothing checkable; as the careful machine's interpreter, its reading was certified and then refused; nothing registered can establish it.",
       );
     } else {
       result.why.lines.unshift(
         "The two machines did not answer the same question.",
-        `The fused machine cannot read your words — it ships its built-in "most frequent" report whatever you ask. The careful machine read the question and declined what nothing registered can establish.`,
+        `The fused machine cannot read your words; it ships its built-in "most frequent" report whatever you ask. The careful machine read the question and declined what nothing registered can establish.`,
       );
-      result.fused.verdict = `it did not notice you asked something else — ${result.fused.verdict}`;
+      result.fused.verdict = `it did not notice you asked something else; ${result.fused.verdict}`;
     }
   }
   // the structured station chain the page renders as checkpoints + stamps
@@ -1968,7 +1968,7 @@ details pre, .tech pre { font:12px/1.6 var(--mono); white-space:pre-wrap; overfl
     </span>
     <label class="ck"><input type="checkbox" id="cap">Silent 500-row cap (both machines)</label>
   </div>
-  <div class="drawnote">Standing records who vouched for the model's reading of your words; it never grants coverage. The cap hands BOTH machines only page one (500 rows) &mdash; the careful machine stamps its coverage and says so; the fused one cannot. Each live run makes two small API calls to ${MODEL_LABEL} &mdash; one as the fused machine (it answers everything itself), one as the careful machine's interpreter (it drafts the reading, never the numbers).</div>
+  <div class="drawnote">Standing records who vouched for the model's reading of your words; it never grants coverage. The cap hands BOTH machines only page one (500 rows); the careful machine stamps its coverage and says so; the fused one cannot. Each live run makes two small API calls to ${MODEL_LABEL}: one as the fused machine (it answers everything itself), one as the careful machine's interpreter (it drafts the reading, never the numbers).</div>
 </div>
 
 <div class="drawer" id="evdrawer" hidden>
@@ -1978,21 +1978,21 @@ details pre, .tech pre { font:12px/1.6 var(--mono); white-space:pre-wrap; overfl
     <button class="miniact" id="dsHistory">Remove prior history</button>
     <button class="miniact" id="dsRestore">Reset evidence</button>
   </div>
-  <div class="evsyntax">YYYY-MM-DD,counterparty[,internal-transfer] &mdash; runs execute over exactly these rows</div>
+  <div class="evsyntax">YYYY-MM-DD,counterparty[,internal-transfer] &middot; runs execute over exactly these rows</div>
   <textarea id="evidence" spellcheck="false" aria-label="Evidence rows, one payment per line">${DEFAULT_STORE_TEXT}</textarea>
 </div>
 
-<details class="howto" id="howto"><summary>How this page works &mdash; who writes what</summary>
+<details class="howto" id="howto"><summary>How this page works: who writes what</summary>
 <ul>
   <li><b>The question and the evidence are yours.</b> Edit both; each run sends them fresh. Nothing is canned.</li>
-  <li><span class="who cd">code</span><b>The answer key is a plain counting loop</b> over your exact rows &mdash; the referee. Neither machine ever sees it.</li>
-  <li><span class="who m">model</span><b>The model speaks only in Band 2, verbatim.</b> Every other sentence on this page &mdash; the judges of Band 3, every grade in Band 4 &mdash; is written by code.</li>
-  <li><span class="who m">model</span><b>Fused</b> = the model unharnessed: reading, counting, and narration in one generation, checked by nothing. A language model does not run a counter &mdash; it emits numbers shaped like counts.</li>
+  <li><span class="who cd">code</span><b>The answer key is a plain counting loop</b> over your exact rows: the referee. Neither machine ever sees it.</li>
+  <li><span class="who m">model</span><b>The model speaks only in Band 2, verbatim.</b> Every other sentence on this page (the judges of Band 3, every grade in Band 4) is written by code.</li>
+  <li><span class="who m">model</span><b>Fused</b> = the model unharnessed: reading, counting, and narration in one generation, checked by nothing. A language model does not run a counter; it emits numbers shaped like counts.</li>
   <li><span class="who cd">code</span><b>Careful</b> = the same model allowed only to draft a reading of your words. Loops do the counting, records back every claim, and it declines what nothing registered can establish.</li>
-  <li>In live mode each run makes two small API calls &mdash; one per machine. Nothing is sent until you press Run.</li>
+  <li>In live mode each run makes two small API calls, one per machine. Nothing is sent until you press Run.</li>
 </ul>
 </details>
-<div id="stale" hidden><span>Settings changed &mdash; results below are from the previous run.</span><button id="stalebtn">Run updated settings</button></div>
+<div id="stale" hidden><span>Settings changed; results below are from the previous run.</span><button id="stalebtn">Run updated settings</button></div>
 
 <div id="placeholder" hidden>Choose an experiment above, then run it.</div>
 <div id="results" tabindex="-1" hidden>
@@ -2020,7 +2020,7 @@ details pre, .tech pre { font:12px/1.6 var(--mono); white-space:pre-wrap; overfl
 
   <section class="band" id="b3">
     <div class="bandhead"><span class="bno">Band 3</span><h2>What happened to it</h2>
-      <div class="bgloss">One reply met a bench of judges; the other met none. Every judge here is plain code acting on records &mdash; the model's prose cannot lobby them, and each ruling is stamped where you can read it.</div></div>
+      <div class="bgloss">One reply met a bench of judges; the other met none. Every judge here is plain code acting on records; the model's prose cannot lobby them, and each ruling is stamped where you can read it.</div></div>
     <div class="duo">
       <div class="half f"><div class="halftag">Fused machine</div><div id="b3f"></div></div>
       <div class="half c"><div class="halftag">Careful machine</div><div id="b3c"></div></div>
@@ -2029,7 +2029,7 @@ details pre, .tech pre { font:12px/1.6 var(--mono); white-space:pre-wrap; overfl
 
   <section class="band" id="b4">
     <div class="bandhead"><span class="bno">Band 4</span><h2>The outcome</h2>
-      <div class="bgloss">Graded against the code-computed answer key &mdash; a plain counting loop over the exact rows you can edit above; visible to you, hidden from both machines. Every verdict in this band is written by code. The model's own words appear only in Band 2.</div></div>
+      <div class="bgloss">Graded against the code-computed answer key: a plain counting loop over the exact rows you can edit above; visible to you, hidden from both machines. Every verdict in this band is written by code. The model's own words appear only in Band 2.</div></div>
     <div class="score" id="score"></div>
     <div class="outcards">
       <div class="ocard f">
@@ -2062,7 +2062,7 @@ details pre, .tech pre { font:12px/1.6 var(--mono); white-space:pre-wrap; overfl
   </section>
 
   <details class="tech"><summary>Raw execution record</summary><button class="miniact" id="copyrec">Copy record</button><pre id="out"></pre></details>
-  <div class="closing">This demo is <i>The Careful Machine</i> compressed to one click &mdash; Miguel Sanchez, 2026. Try <button class="tbtn" id="nextHostile">Hostile injection</button> next, or edit the evidence and watch the truth itself move.</div>
+  <div class="closing">This demo is <i>The Careful Machine</i> compressed to one click. Miguel Sanchez, 2026. Try <button class="tbtn" id="nextHostile">Hostile injection</button> next, or edit the evidence and watch the truth itself move.</div>
 </div>
 </div>
 <div id="mobilebar"><button id="mobilerun">Run updated settings</button></div>
@@ -2079,7 +2079,7 @@ var TONE = {
 var STAMPWORD = {
   "rejected-draft": "REJECTED", clarification: "STOPPED TO ASK", "incoherent-draft": "STOPPED",
   refusal: "REFUSED", "novelty-refusal": "REFUSED", "struck-claim": "STRUCK",
-  "scope-conflict": "OUT OF SCOPE", quarantine: "QUARANTINED", "partial-coverage": "PARTIAL \\u2014 SAID SO",
+  "scope-conflict": "OUT OF SCOPE", quarantine: "QUARANTINED", "partial-coverage": "PARTIAL, SAID SO",
 };
 var CLAIMLABEL = { "ranked-payee": "ranking asked for", count: "its payment count", "new-set": "new this quarter" };
 var REDUCED = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -2228,13 +2228,13 @@ function activate(key, userGesture) {
     try { history.replaceState(null, "", "#" + key); } catch (e) {}
     if (liveMode() && !userGesture) {
       $("#status").className = "";
-      $("#status").textContent = "Ready \\u2014 press Run to send this question to " + MODEL_LABEL + " (two small API calls per run).";
+      $("#status").textContent = "Ready: press Run to send this question to " + MODEL_LABEL + " (two small API calls per run).";
       if ($("#results").hidden) $("#placeholder").hidden = false;
       return;
     }
     runNow(p.label);
   } else {
-    $("#scenDesc").textContent = p.label + " applied \\u2014 press Run.";
+    $("#scenDesc").textContent = p.label + " applied; press Run.";
     isStale = true;
     document.body.classList.add("isStale");
     if (!$("#results").hidden) $("#stale").hidden = false;
@@ -2261,7 +2261,7 @@ function fold(label, text) {
 function stamp(word, color, big) {
   return el("span", "stamp " + color + (big ? " big" : ""), word);
 }
-/* question text with quarantined spans highlighted — split into text nodes */
+/* question text with quarantined spans highlighted, split into text nodes */
 function questionNode(text, spans) {
   var box = el("div", "speech");
   var rest = text;
@@ -2300,7 +2300,7 @@ function strip(pct, green, capText) {
 /* ---------- band renderers ---------- */
 function renderB1(r) {
   $("#b1gloss").textContent = r.fused.exchange
-    ? "Same question, verbatim, in both requests. Everything else differs BY DESIGN \\u2014 what a system hands the model is the architecture. One hands it the data and takes dictation; the other hands it words only and takes a draft."
+    ? "Same question, verbatim, in both requests. Everything else differs BY DESIGN: what a system hands the model is the architecture. One hands it the data and takes dictation; the other hands it words only and takes a draft."
     : "The stub pipeline fetches page one itself; the interpreter gets the words only.";
   var f = $("#b1f");
   f.textContent = "";
@@ -2308,25 +2308,25 @@ function renderB1(r) {
   fx.appendChild(el("div", "extab", "Exhibit F-1 \\u00b7 request"));
   if (r.fused.exchange) {
     fx.appendChild(el("div", "chrome", "POST " + r.fused.exchange.request.url + "  \\u00b7  " + r.fused.exchange.model + "  \\u00b7  " + r.fused.exchange.request.toolChoice));
-    fx.appendChild(el("div", "extab", "role: answer everything \\u2014 reading, counting, narration in one generation"));
+    fx.appendChild(el("div", "extab", "role: answer everything: reading, counting, narration in one generation"));
     var sys = r.fused.exchange.request.system;
     fx.appendChild(el("div", "gist", sys.length > 150 ? sys.slice(0, 150) + "\\u2026" : sys));
-    if (sys.length > 150) fx.appendChild(fold("Unfold \\u2014 full system prompt", sys));
+    if (sys.length > 150) fx.appendChild(fold("Unfold: full system prompt", sys));
   } else {
     fx.appendChild(el("div", "chrome", "no model \\u00b7 no network call"));
     fx.appendChild(el("div", "gist", "An ordinary pipeline: fetch \\u2192 count \\u2192 template. Your words are never read."));
   }
   fx.appendChild(questionNode($("#q").value, r.fused.exchange ? r.fused.handed.suspectSpans : []));
   if (r.fused.exchange && r.fused.handed.suspectSpans.length)
-    fx.appendChild(el("div", "stripcap", "highlighted: went straight into the prompt \\u2014 nothing in this machine can hold it"));
+    fx.appendChild(el("div", "stripcap", "highlighted: went straight into the prompt; nothing in this machine can hold it"));
   var pct = r.fused.handed.rowsTotal ? (100 * r.fused.handed.rowsHanded / r.fused.handed.rowsTotal) : 0;
   var full = r.fused.handed.rowsHanded >= r.fused.handed.rowsTotal;
   fx.appendChild(strip(pct, false, full
-    ? "DATA HANDED: all " + r.fused.handed.rowsTotal.toLocaleString() + " rows, history included \\u2014 the fair fight; any failure is the generation's own"
+    ? "DATA HANDED: all " + r.fused.handed.rowsTotal.toLocaleString() + " rows, history included: the fair fight; any failure is the generation's own"
     : "DATA HANDED: rows 1\\u2013" + r.fused.handed.rowsHanded.toLocaleString() + " of " + r.fused.handed.rowsTotal.toLocaleString() +
-      " \\u2014 the silent 500-row default; " + (r.fused.exchange ? "the model was not told" : "nobody asked for page two")));
+      ": the silent 500-row default; " + (r.fused.exchange ? "the model was not told" : "nobody asked for page two")));
   if (r.fused.exchange)
-    fx.appendChild(fold("Unfold \\u2014 full user message (question + the " + r.fused.handed.rowsHanded + " rows it was handed)", r.fused.exchange.request.userMessage));
+    fx.appendChild(fold("Unfold: full user message (question + the " + r.fused.handed.rowsHanded + " rows it was handed)", r.fused.exchange.request.userMessage));
   f.appendChild(fx);
 
   var c = $("#b1c");
@@ -2335,21 +2335,21 @@ function renderB1(r) {
   cx.appendChild(el("div", "extab", "Exhibit C-1 \\u00b7 request"));
   if (r.interp.mode === "live" && r.interp.request) {
     cx.appendChild(el("div", "chrome", "POST " + r.interp.request.url + "  \\u00b7  " + (r.interp.model || MODEL_LABEL) + "  \\u00b7  " + r.interp.request.toolChoice));
-    cx.appendChild(el("div", "extab", "role: draft the reading only \\u2014 it never sees a row, it never produces a number"));
+    cx.appendChild(el("div", "extab", "role: draft the reading only: it never sees a row, it never produces a number"));
     var csys = r.interp.request.system;
     cx.appendChild(el("div", "gist", csys.length > 150 ? csys.slice(0, 150) + "\\u2026" : csys));
-    if (csys.length > 150) cx.appendChild(fold("Unfold \\u2014 full system prompt", csys));
+    if (csys.length > 150) cx.appendChild(fold("Unfold: full system prompt", csys));
     cx.appendChild(questionNode(r.interp.request.userMessage, []));
-    cx.appendChild(fold("Unfold \\u2014 draft_contract tool schema (sent with the request)", r.interp.request.toolSchema));
+    cx.appendChild(fold("Unfold: draft_contract tool schema (sent with the request)", r.interp.request.toolSchema));
   } else {
     cx.appendChild(el("div", "chrome", "offline stub \\u00b7 no network call"));
     cx.appendChild(el("div", "gist", "A deterministic stand-in drafts the same fixed reading whatever you type. Switch to \\u201CLive model\\u201D to have your words actually read."));
     cx.appendChild(questionNode($("#q").value, []));
   }
-  cx.appendChild(strip(0, true, "HANDED TO THE MODEL: none \\u2014 the interpreter is never shown a row"));
+  cx.appendChild(strip(0, true, "HANDED TO THE MODEL: none; the interpreter is never shown a row"));
   cx.appendChild(strip(100, true,
     "READ BY THE MACHINE'S OWN CODE: all " + r.fused.handed.rowsTotal.toLocaleString() +
-    " rows available under a recorded grant \\u2014 every row it touches is stamped at EVIDENCE (Band 3)"));
+    " rows available under a recorded grant; every row it touches is stamped at EVIDENCE (Band 3)"));
   c.appendChild(cx);
 }
 
@@ -2363,28 +2363,28 @@ function renderB2(r) {
   fx.appendChild(sp);
   if (r.fused.grade.length) {
     var fl = el("div", "fl");
-    fl.appendChild(el("div", "k", "ITS CLAIMS, AS FIELDS \\u2014 ungraded, for now:"));
+    fl.appendChild(el("div", "k", "ITS CLAIMS, AS FIELDS (ungraded, for now):"));
     r.fused.grade.forEach(function (g) {
       var row = el("div");
       row.appendChild(el("span", "k", CLAIMLABEL[g.claim] + ":  "));
-      row.appendChild(el("b", null, g.claimed == null ? "\\u2014 no checkable claim" : g.claimed));
+      row.appendChild(el("b", null, g.claimed == null ? "no checkable claim" : g.claimed));
       fl.appendChild(row);
     });
     fx.appendChild(fl);
   }
-  if (r.fused.exchange) fx.appendChild(fold("Unfold \\u2014 raw tool reply, verbatim", r.fused.exchange.rawReply));
+  if (r.fused.exchange) fx.appendChild(fold("Unfold: raw tool reply, verbatim", r.fused.exchange.rawReply));
   f.appendChild(fx);
 
   var c = $("#b2c");
   c.textContent = "";
   var cx = el("div", "exhibit");
-  cx.appendChild(el("div", "extab", "Exhibit C-2 \\u00b7 draft(s) \\u2014 a draft carries no authority"));
+  cx.appendChild(el("div", "extab", "Exhibit C-2 \\u00b7 draft(s): a draft carries no authority"));
   r.interp.attempts.forEach(function (a, i) {
     var head = el("div");
     head.appendChild(stamp(a.verdict === "accepted" ? "ACCEPTED" : "REJECTED", a.verdict === "accepted" ? "g" : "o"));
-    head.appendChild(el("span", "stripcap", "attempt " + (i + 1) + (a.rejectReason ? " \\u2014 " + a.rejectReason : " \\u2014 by mechanical validation")));
+    head.appendChild(el("span", "stripcap", "attempt " + (i + 1) + (a.rejectReason ? ": " + a.rejectReason : ": by mechanical validation")));
     cx.appendChild(head);
-    cx.appendChild(fold("Unfold \\u2014 raw draft " + (i + 1) + ", verbatim", a.rawDraft));
+    cx.appendChild(fold("Unfold: raw draft " + (i + 1) + ", verbatim", a.rawDraft));
   });
   if (r.careful.contract) {
     var fl2 = el("div", "fl");
@@ -2407,11 +2407,11 @@ function renderB2(r) {
     if (r.careful.contract.unclaimedText.length) {
       var held = el("div", "held");
       held.appendChild(stamp("QUARANTINED", "o"));
-      held.appendChild(document.createTextNode(" \\u201C" + r.careful.contract.unclaimedText.join("\\u201D; \\u201C") + "\\u201D \\u2014 recorded, claimed by no ask, actionable by nothing"));
+      held.appendChild(document.createTextNode(" \\u201C" + r.careful.contract.unclaimedText.join("\\u201D; \\u201C") + "\\u201D: recorded, claimed by no ask, actionable by nothing"));
       cx.appendChild(held);
     }
   } else {
-    cx.appendChild(el("div", "gist", "No certified reading \\u2014 every draft was rejected; nothing acquired standing."));
+    cx.appendChild(el("div", "gist", "No certified reading; every draft was rejected; nothing acquired standing."));
   }
   c.appendChild(cx);
 }
@@ -2428,7 +2428,7 @@ function renderB3(r) {
   var anyWrong = r.fused.grade.some(function (g) { return g.verdict === "wrong"; });
   var anyClaim = r.fused.grade.some(function (g) { return g.claimed != null; });
   var rs = el("div", "railstamp " + (anyWrong ? "r" : anyClaim ? "o" : "n"),
-    anyWrong ? "SHIPPED UNCHECKED" : anyClaim ? "RIGHT \\u2014 BY LUCK" : "NOTHING TO CHECK");
+    anyWrong ? "SHIPPED UNCHECKED" : anyClaim ? "RIGHT, BY LUCK" : "NOTHING TO CHECK");
   rail.appendChild(rs);
   f.appendChild(rail);
   f.appendChild(el("div", "railcap", "Seven stations, all vacant. Every box worked; nothing owned the question, so nothing could catch it."));
@@ -2475,13 +2475,13 @@ function renderB3(r) {
     var cov = r.careful.coverage;
     var pop = typeof cov.populationCount === "number" ? cov.populationCount : cov.itemsRead;
     c.appendChild(strip(pop ? (100 * cov.itemsRead / pop) : 0, true,
-      "READ AND STAMPED: " + cov.itemsRead.toLocaleString() + " of " + pop.toLocaleString() + " rows \\u2014 " + (cov.complete ? "complete" : "partial, and it said so")));
+      "READ AND STAMPED: " + cov.itemsRead.toLocaleString() + " of " + pop.toLocaleString() + " rows: " + (cov.complete ? "complete" : "partial, and it said so")));
   }
 }
 
 function gradeCell(g, machine) {
   var td = document.createElement("td");
-  if (!g) { td.appendChild(el("span", "nt", "\\u2014")); return td; }
+  if (!g) { td.appendChild(el("span", "nt", "\u2013")); return td; }
   if (g.verdict === "right") {
     td.className = "vr";
     td.textContent = "\\u2713 " + (g.claimed == null ? "" : g.claimed);
@@ -2502,10 +2502,10 @@ function gradeCell(g, machine) {
     td.appendChild(document.createTextNode(g.claimed == null ? "" : g.claimed));
     if (g.note) td.appendChild(el("span", "nt", g.note));
   } else {
-    td.appendChild(el("span", "nt", "\\u2014 no claim"));
+    td.appendChild(el("span", "nt", "no claim"));
   }
   if (machine === "fused" && g.verdict === "lucky")
-    td.appendChild(el("span", "nt", "right value \\u2014 nothing behind it can be verified"));
+    td.appendChild(el("span", "nt", "right value; nothing behind it can be verified"));
   return td;
 }
 
@@ -2525,7 +2525,7 @@ function renderB4(r) {
     var tr = document.createElement("tr");
     tr.appendChild(el("td", null, CLAIMLABEL[claim]));
     tr.appendChild(gradeCell(fg, "fused"));
-    tr.appendChild(el("td", "keycell", (fg && fg.expected) || (cg && cg.expected) || "\\u2014"));
+    tr.appendChild(el("td", "keycell", (fg && fg.expected) || (cg && cg.expected) || "\u2013"));
     tr.appendChild(gradeCell(cg, "careful"));
     table.appendChild(tr);
   });
@@ -2665,7 +2665,7 @@ async function runNow(ranLabel) {
     $("#ranline").textContent = (ranLabel || "Custom settings") + " \\u00b7 " + interpLabel + " \\u00b7 " + standing + " \\u00b7 " + cov;
 
     if (r.skipped > 0) {
-      $("#evwarn").textContent = r.skipped + " malformed evidence line(s) ignored \\u2014 rows must be YYYY-MM-DD,name";
+      $("#evwarn").textContent = r.skipped + " malformed evidence line(s) ignored; rows must be YYYY-MM-DD,name";
       $("#evwarn").hidden = false;
     } else { $("#evwarn").hidden = true; }
 
@@ -2693,7 +2693,7 @@ async function runNow(ranLabel) {
     results.focus({ preventScroll: true });
   } catch (e) {
     $("#status").className = "error";
-    $("#status").textContent = "Request failed \\u2014 server may be down; retry. (" + e + ")";
+    $("#status").textContent = "Request failed; server may be down; retry. (" + e + ")";
     if ($("#results").hidden) $("#placeholder").textContent = "Choose an experiment above, then run it.";
     setRunLabel();
   } finally {

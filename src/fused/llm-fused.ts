@@ -1,5 +1,5 @@
 // The fused machine, live: the SAME model the careful machine uses as its
-// interpreter, but unharnessed — it is handed the question and page one of
+// interpreter, but unharnessed; it is handed the question and page one of
 // the data, and one generation produces the reading, the counting, and the
 // narration. Nothing it does is validated, recorded, or replayable; the
 // forced tool exists only because the app's UI needs fields to render.
@@ -65,7 +65,7 @@ export interface FusedExchange {
     toolChoice: string;
     toolSchema: string;
   };
-  rawReply: string; // verbatim tool input — model output, untrusted text
+  rawReply: string; // verbatim tool input; model output, untrusted text
 }
 
 export async function callFusedLive(
@@ -102,7 +102,7 @@ export async function callFusedLive(
   };
   const toolUse = body.content?.find((b) => b.type === "tool_use");
   if (!toolUse) throw new Error("fused call returned no tool_use block");
-  // no validation, no retry: whatever came back is what ships — that is the
+  // no validation, no retry: whatever came back is what ships; that is the
   // machine being demonstrated. Missing fields become "no checkable claim".
   const raw = (toolUse.input ?? {}) as Record<string, unknown>;
   const fields: FusedFields = {

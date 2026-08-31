@@ -114,11 +114,11 @@ interface RawDraft {
   unclaimedText: unknown;
 }
 
-// the full exchange, on the record: what was sent (no secrets — the key is a
+// the full exchange, on the record: what was sent (no secrets; the key is a
 // header and never copied here), what came back verbatim, and what the
 // mechanical validator did with each draft
 export interface InterpreterAttempt {
-  rawDraft: string; // verbatim tool_use input — model output, untrusted text
+  rawDraft: string; // verbatim tool_use input; model output, untrusted text
   verdict: "accepted" | "rejected";
   rejectReason?: string;
 }
