@@ -858,11 +858,14 @@ function gradeFusedLive(
 }
 
 function fusedLiveSteps(pageLen: number, population: number): Step[] {
+  const full = pageLen >= population;
   return [
     {
       t: "READ",
-      d: `handed page one: ${pageLen} of ${population} quarter rows — the integration's default fetch; it was not told`,
-      tone: "warn",
+      d: full
+        ? `handed everything: all ${population} rows, history included — no excuse lives in the data`
+        : `handed page one: ${pageLen} of ${population} rows — the integration's default fetch; it was not told`,
+      tone: full ? "info" : "warn",
     },
     {
       t: "MODEL",
@@ -901,13 +904,16 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
     grade: useLive ? [] : fusedGradeStubRows(store, key),
     handed: { rowsHanded: pageLen, rowsTotal: store.length, suspectSpans: [] },
   };
-  // live mode: the fused machine is the same model, unharnessed — handed the
-  // question plus page one of the data; graded once the careful draft reveals
-  // which direction the question asked for
+  // live mode: the fused machine is the same model, unharnessed. The fair
+  // fight is the default — it is handed EVERY row, history included, so any
+  // failure is the generation's own. The cap re-imposes the silent 500-row
+  // page-one default on BOTH machines at once.
   let fusedLive: { fields: FusedFields; exchange: FusedExchange } | null = null;
+  const fusedRows = req.cap
+    ? cappedRead(store, "acct-1187")
+    : store.filter((r) => r.account === "acct-1187");
   if (useLive) {
-    const page = cappedRead(store, "acct-1187");
-    const pageText = page
+    const pageText = fusedRows
       .map(
         (r) =>
           `${r.at},${r.counterparty}${r.kind === "internal-transfer" ? ",internal-transfer" : ""}`,
@@ -915,14 +921,13 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
       .join("\n");
     try {
       fusedLive = await callFusedLive(question, pageText);
-      const population = store.filter(
-        (r) =>
-          r.account === "acct-1187" &&
-          r.at >= QUARTER.from &&
-          r.at <= QUARTER.to,
-      ).length;
+      fused.handed = {
+        rowsHanded: fusedRows.length,
+        rowsTotal: store.length,
+        suspectSpans: [],
+      };
       fused.answer = fusedLive.fields.answerText;
-      fused.steps = fusedLiveSteps(page.length, population);
+      fused.steps = fusedLiveSteps(fusedRows.length, store.length);
       fused.exchange = fusedLive.exchange;
       fused.fields = fusedLive.fields;
     } catch (e) {
@@ -1451,11 +1456,31 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
       unclaimed: proposal.content.unclaimedText,
     },
   );
+  // the fair fight: fused was handed every row, so the page-one story does
+  // not apply — the failure (or luck) is the generation itself
+  if (useLive && fusedLive && !req.cap) {
+    result.why.fusedRead = {
+      title: `FUSED was handed: all ${store.length.toLocaleString("en-GB")} rows, history included — and it cannot say what it read`,
+      bars: topBars(
+        store.filter((r) => r.at >= QUARTER.from && r.at <= QUARTER.to),
+      ),
+    };
+    if (!rankingRefused) {
+      const anyWrong = fused.grade.some((g) => g.verdict === "wrong");
+      result.why.lines = [
+        anyWrong
+          ? "The fused machine had everything and still got it wrong. Nothing was withheld; the failure is the generation itself."
+          : "The fused machine had everything and happens to be right — and there is still no way to check it.",
+        "Same model, same data, same question. Unharnessed, it asserted numbers nobody can audit; the careful machine's numbers re-check from its records.",
+        ...result.why.lines,
+      ];
+    }
+  }
   if (rankingRefused) {
     if (useLive) {
       result.why.lines.unshift(
         "One machine declined this question; the other answered it anyway.",
-        "Same model on both sides. Unharnessed, it answered from page one with nothing checkable; as the careful machine's interpreter, its reading was certified and then refused — nothing registered can establish it.",
+        "Same model on both sides. Unharnessed, it answered with nothing checkable; as the careful machine's interpreter, its reading was certified and then refused — nothing registered can establish it.",
       );
     } else {
       result.why.lines.unshift(
@@ -1931,9 +1956,9 @@ details pre, .tech pre { font:12px/1.6 var(--mono); white-space:pre-wrap; overfl
       <label><input type="radio" name="st" value="policy-admitted" checked>Policy admitted</label>
       <label><input type="radio" name="st" value="requester-confirmed">Requester confirmed</label>
     </span>
-    <label class="ck"><input type="checkbox" id="cap">Cap careful read at 500</label>
+    <label class="ck"><input type="checkbox" id="cap">Silent 500-row cap (both machines)</label>
   </div>
-  <div class="drawnote">Standing records who vouched for the model's reading of your words; it never grants coverage. The cap affects the careful machine only. Each live run makes two small API calls to ${MODEL_LABEL} &mdash; one as the fused machine (it answers everything itself), one as the careful machine's interpreter (it drafts the reading, never the numbers).</div>
+  <div class="drawnote">Standing records who vouched for the model's reading of your words; it never grants coverage. The cap hands BOTH machines only page one (500 rows) &mdash; the careful machine stamps its coverage and says so; the fused one cannot. Each live run makes two small API calls to ${MODEL_LABEL} &mdash; one as the fused machine (it answers everything itself), one as the careful machine's interpreter (it drafts the reading, never the numbers).</div>
 </div>
 
 <div class="drawer" id="evdrawer" hidden>
@@ -2047,10 +2072,10 @@ $("#q").value = PLAIN_Q;
 function liveMode() { return $("#live").checked; }
 
 var TIPS = {
-  plain: "Full evidence; the interpreter reads your words as written.",
+  plain: "The fair fight: both sides get everything. Any fused failure is the model's own.",
   hostile: "The question tries to escape policy.",
-  cap: "Careful read capped at 500 rows.",
-  "confirmed-cap": "Meaning confirmed; evidence still capped at 500 rows.",
+  cap: "The silent 500-row default, imposed on BOTH machines. One says so.",
+  "confirmed-cap": "Meaning confirmed by the requester; both machines still see only 500 rows.",
   lucky: "Evidence rebalanced so the broken machine happens to get it right.",
 };
 function set(q, standing, cap) {
@@ -2244,6 +2269,7 @@ function strip(pct, green, capText) {
   if (pct > 0) {
     var f = el("div", "fill" + (green ? " g" : ""));
     f.style.width = Math.max(1, Math.min(100, pct)) + "%";
+    if (pct >= 100) f.style.clipPath = "none";
     s.appendChild(f);
   }
   wrap.appendChild(s);
@@ -2274,9 +2300,11 @@ function renderB1(r) {
   if (r.fused.exchange && r.fused.handed.suspectSpans.length)
     fx.appendChild(el("div", "stripcap", "highlighted: went straight into the prompt \\u2014 nothing in this machine can hold it"));
   var pct = r.fused.handed.rowsTotal ? (100 * r.fused.handed.rowsHanded / r.fused.handed.rowsTotal) : 0;
-  fx.appendChild(strip(pct, false,
-    "DATA HANDED: rows 1\\u2013" + r.fused.handed.rowsHanded.toLocaleString() + " of " + r.fused.handed.rowsTotal.toLocaleString() +
-    " \\u2014 the integration default; " + (r.fused.exchange ? "the model was not told" : "nobody asked for page two")));
+  var full = r.fused.handed.rowsHanded >= r.fused.handed.rowsTotal;
+  fx.appendChild(strip(pct, false, full
+    ? "DATA HANDED: all " + r.fused.handed.rowsTotal.toLocaleString() + " rows, history included \\u2014 the fair fight; any failure is the generation's own"
+    : "DATA HANDED: rows 1\\u2013" + r.fused.handed.rowsHanded.toLocaleString() + " of " + r.fused.handed.rowsTotal.toLocaleString() +
+      " \\u2014 the silent 500-row default; " + (r.fused.exchange ? "the model was not told" : "nobody asked for page two")));
   if (r.fused.exchange)
     fx.appendChild(fold("Unfold \\u2014 full user message (question + the " + r.fused.handed.rowsHanded + " rows it was handed)", r.fused.exchange.request.userMessage));
   f.appendChild(fx);
