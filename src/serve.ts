@@ -2106,7 +2106,7 @@ var TIPS = {
   hostile: "The question tries to escape policy.",
   cap: "The silent 500-row default, imposed on BOTH machines. One says so.",
   "confirmed-cap": "Meaning confirmed by the requester; both machines still see only 500 rows.",
-  lucky: "Evidence rebalanced so the broken machine happens to get it right.",
+  lucky: "Evidence rebalanced so even a broken read lands on the right name. Right name, still nothing checkable.",
 };
 function set(q, standing, cap) {
   applyingPreset = true;
