@@ -1762,6 +1762,14 @@ textarea { width:100%; border:1px solid var(--border); border-radius:6px; backgr
 .miniact:hover { border-color:var(--accent); color:var(--accent); }
 #evsum { font:12px var(--mono); color:var(--muted); margin:0 0 4px; }
 .evsyntax { font:11px var(--mono); color:var(--muted); margin:8px 0 6px; }
+/* how-to */
+.howto { margin:10px 0 0; }
+.howto ul { margin:6px 0 4px; padding-left:20px; }
+.howto li { font:13px/1.6 var(--sans); margin:0 0 7px; max-width:82ch; }
+.howto b { font-weight:700; }
+.howto .who { font:600 10px var(--sans); letter-spacing:1.2px; text-transform:uppercase; padding:1px 6px; border:1.5px solid currentColor; border-radius:4px; margin-right:4px; }
+.howto .who.m { color:var(--accent); }
+.howto .who.cd { color:var(--careful); }
 /* stale */
 #stale { font:12.5px var(--sans); color:var(--warning); background:var(--warning-soft); border-radius:6px; padding:7px 12px; margin:12px 0 0; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
 #stalebtn { font:600 12px var(--sans); color:#fff; background:var(--warning); border-radius:5px; padding:6px 10px; }
@@ -1974,6 +1982,16 @@ details pre, .tech pre { font:12px/1.6 var(--mono); white-space:pre-wrap; overfl
   <textarea id="evidence" spellcheck="false" aria-label="Evidence rows, one payment per line">${DEFAULT_STORE_TEXT}</textarea>
 </div>
 
+<details class="howto" id="howto"><summary>How this page works &mdash; who writes what</summary>
+<ul>
+  <li><b>The question and the evidence are yours.</b> Edit both; each run sends them fresh. Nothing is canned.</li>
+  <li><span class="who cd">code</span><b>The answer key is a plain counting loop</b> over your exact rows &mdash; the referee. Neither machine ever sees it.</li>
+  <li><span class="who m">model</span><b>The model speaks only in Band 2, verbatim.</b> Every other sentence on this page &mdash; the judges of Band 3, every grade in Band 4 &mdash; is written by code.</li>
+  <li><span class="who m">model</span><b>Fused</b> = the model unharnessed: reading, counting, and narration in one generation, checked by nothing. A language model does not run a counter &mdash; it emits numbers shaped like counts.</li>
+  <li><span class="who cd">code</span><b>Careful</b> = the same model allowed only to draft a reading of your words. Loops do the counting, records back every claim, and it declines what nothing registered can establish.</li>
+  <li>In live mode each run makes two small API calls &mdash; one per machine. Nothing is sent until you press Run.</li>
+</ul>
+</details>
 <div id="stale" hidden><span>Settings changed &mdash; results below are from the previous run.</span><button id="stalebtn">Run updated settings</button></div>
 
 <div id="placeholder" hidden>Choose an experiment above, then run it.</div>
