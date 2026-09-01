@@ -52,26 +52,33 @@ const gateCert = certifyAdmitted(proposal, "AP-9");
 const scopeCert = effectiveScope(gateCert, GRANTS, "2025-07-04");
 const selections = selectOperations(gateCert.content.contract.asks);
 const interception: InterceptionLog = { entries: [] };
-const { exec, evidence, ranking } = run(
+// only what the registry selected runs, and the read is intercepted first
+const { executed, exec, evidence, ranking, cannotExecuteGrounds } = run(
   scopeCert,
   store,
   QUARTER,
   interception,
+  selections,
 );
+// the book's question is inside the grant and inside the registry, so this
+// one always reads; the routed-no paths are demo:live, the web UI and tests
+if (!executed || !exec || !evidence)
+  throw new Error(`the demo question did not execute: ${cannotExecuteGrounds.join("; ")}`);
 const ledger: Ledger = {
   evidence: new Map([[evidence.evidenceId, evidence]]),
-  results: new Map([[ranking.resultId, ranking]]),
+  results: new Map(ranking ? [[ranking.resultId, ranking]] : []),
 };
 const claims = proposeClaims(ranking);
 const verdicts = verifyAll(claims, ledger);
 const disposition = deriveDisposition({
   contractCertified: true,
   unresolvedAmbiguity: false,
-  cannotExecuteGrounds: selections
-    .filter((s) => s.cannotExecute)
-    .map((s) => s.cannotExecute!.ground),
+  cannotExecuteGrounds: [
+    ...selections.filter((s) => s.cannotExecute).map((s) => s.cannotExecute!.ground),
+    ...cannotExecuteGrounds,
+  ],
   scopeConflicts: scopeCert.content.conflicts,
-  executed: true,
+  executed,
   coveragePartial: !evidence.coverage.complete,
   verdicts,
 });
@@ -88,9 +95,15 @@ console.log(
 console.log(
   `   evidence ${evidence.evidenceId}: read ${evidence.coverage.itemsRead} of ${evidence.coverage.populationCount}, complete=${evidence.coverage.complete}`,
 );
-console.log(
-  `   result ${ranking.resultId}: ${ranking.opId} v${ranking.opVersion}, coverage ${ranking.coverage}`,
-);
+console.log(`   execution ${exec.execId}: ran [${exec.ranOperations.join(", ")}]`);
+for (const e of interception.entries)
+  console.log(
+    `   intercepted ${e.op}: classified ${e.actionClass}, ${e.decision}, under ${e.certId}`,
+  );
+if (ranking)
+  console.log(
+    `   result ${ranking.resultId}: ${ranking.opId} v${ranking.opVersion}, coverage ${ranking.coverage}`,
+  );
 for (const v of verdicts)
   console.log(
     `   claim ${v.claimId}: ${v.outcome}${v.failingCheck ? ` (${v.failingCheck})` : ""}`,

@@ -95,40 +95,46 @@ const contractWindow = {
   from: gateCert.content.contract.window.from,
   to: gateCert.content.contract.window.to,
 };
-const { exec, evidence, ranking } = run(
+// only the operations the registry selected run, and only under this
+// certification; an ask with no operation, or a subject no grant covers,
+// reads nothing and routes a no
+const { executed, exec, evidence, ranking, cannotExecuteGrounds } = run(
   scopeCert,
   store,
   contractWindow,
   interception,
+  selections,
 );
 console.log(
-  `EVIDENCE: read ${evidence.coverage.itemsRead} of ${evidence.coverage.populationCount}, complete=${evidence.coverage.complete}`,
+  evidence
+    ? `EVIDENCE: read ${evidence.coverage.itemsRead} of ${evidence.coverage.populationCount}, complete=${evidence.coverage.complete}`
+    : `EVIDENCE: nothing was read; no operation ran under ${scopeCert.certId}`,
 );
+for (const e of interception.entries)
+  console.log(
+    `INTERCEPTION: ${e.op} classified ${e.actionClass}, ${e.decision}, under ${e.certId}`,
+  );
 
 const ledger: Ledger = {
-  evidence: new Map([[evidence.evidenceId, evidence]]),
-  results: new Map([[ranking.resultId, ranking]]),
+  evidence: new Map(evidence ? [[evidence.evidenceId, evidence]] : []),
+  results: new Map(ranking ? [[ranking.resultId, ranking]] : []),
 };
-// a refused ranking ask (e.g. least-frequent) must not yield ranking claims
-const rankingAsk = gateCert.content.contract.asks.find(
-  (a) => a.kind === "ranking",
-);
-const rankingRefused =
-  rankingAsk != null &&
-  selections.find((s) => s.askId === rankingAsk.askId)?.cannotExecute != null;
-const claims = rankingRefused ? [] : proposeClaims(ranking);
+// claims can only be built from a result that exists, and a result exists
+// only for an operation the registry selected: no glue required here
+const claims = proposeClaims(ranking);
 const verdicts = verifyAll(claims, ledger);
 const disposition = deriveDisposition({
   contractCertified: true,
   unresolvedAmbiguity: gateCert.content.contract.asks.some(
     (a) => a.resolution.state === "unresolved",
   ),
-  cannotExecuteGrounds: selections
-    .filter((s) => s.cannotExecute)
-    .map((s) => s.cannotExecute!.ground),
+  cannotExecuteGrounds: [
+    ...selections.filter((s) => s.cannotExecute).map((s) => s.cannotExecute!.ground),
+    ...cannotExecuteGrounds,
+  ],
   scopeConflicts: scopeCert.content.conflicts,
-  executed: true,
-  coveragePartial: !evidence.coverage.complete,
+  executed,
+  coveragePartial: evidence ? !evidence.coverage.complete : false,
   verdicts,
 });
 
@@ -146,7 +152,7 @@ const ans = buildAnswerRecord(
 const rep = replay(ans, {
   contracts: new Set([gateCert.content.contract.contractId]),
   certs: new Set([scopeCert.certId]),
-  executions: new Set([exec.execId]),
+  executions: new Set(exec ? [exec.execId] : []),
   ledger,
   claims: new Set(claims.map((c) => c.claimId)),
 });

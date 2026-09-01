@@ -46,26 +46,31 @@ console.log(
 
 const selections = selectOperations(gateCert.content.contract.asks);
 const interception: InterceptionLog = { entries: [] };
-const { exec, evidence, ranking } = run(
+const { executed, exec, evidence, ranking, cannotExecuteGrounds } = run(
   scopeCert,
   store,
   QUARTER,
   interception,
+  selections,
 );
+// the narrowed scope still leaves acct-1187 readable, so this one executes
+if (!executed || !exec || !evidence)
+  throw new Error(`nothing executed: ${cannotExecuteGrounds.join("; ")}`);
 const ledger: Ledger = {
   evidence: new Map([[evidence.evidenceId, evidence]]),
-  results: new Map([[ranking.resultId, ranking]]),
+  results: new Map(ranking ? [[ranking.resultId, ranking]] : []),
 };
 const claims = proposeClaims(ranking);
 const verdicts = verifyAll(claims, ledger);
 const disposition = deriveDisposition({
   contractCertified: true,
   unresolvedAmbiguity: false,
-  cannotExecuteGrounds: selections
-    .filter((s) => s.cannotExecute)
-    .map((s) => s.cannotExecute!.ground),
+  cannotExecuteGrounds: [
+    ...selections.filter((s) => s.cannotExecute).map((s) => s.cannotExecute!.ground),
+    ...cannotExecuteGrounds,
+  ],
   scopeConflicts: scopeCert.content.conflicts,
-  executed: true,
+  executed,
   coveragePartial: !evidence.coverage.complete,
   verdicts,
 });
@@ -76,6 +81,9 @@ console.log(
   `evidence: read ${evidence.coverage.itemsRead} of ${evidence.coverage.populationCount} rows of acct-1187 only`,
 );
 console.log(`disposition: ${disposition.disposition}`);
+console.log("operations intercepted, with the certification each ran under:");
+for (const e of interception.entries)
+  console.log(`  - ${e.op}: ${e.actionClass}, ${e.decision}, under ${e.certId}`);
 console.log("records carried in the answer:");
 for (const r of disposition.records) console.log(`  - ${r}`);
 

@@ -4,32 +4,39 @@
 import type { DerivedResult, DispositionGrounds, ProposedClaim, Verdict } from "../records.ts";
 
 let n = 0;
-export function proposeClaims(ranking: DerivedResult): ProposedClaim[] {
+export function proposeClaims(ranking: DerivedResult | null): ProposedClaim[] {
   // The stub behaves like an eager model: it proposes the strong, unqualified
   // ranking claim EVEN when the result's coverage is partial (hedging beside
   // it). The clerk, not the stub, decides what survives.
+  // No result, no claims: the narrator can only speak about what executed, so
+  // an ask whose operation never ran cannot acquire a sentence here.
+  if (!ranking) return [];
   const ranked = ranking.value as { counterparty: string; payments: number }[];
   // an empty read yields no claims at all; the disposition, not the narrator,
   // says what that means
   if (!ranked.length) return [];
   const top = ranked[0]!;
+  // subject and period come from the result's own parameters, never from a
+  // literal: a claim cannot name a period or an account that was not read
+  const subject = String(ranking.parameters.subject);
+  const window = String(ranking.parameters.window);
   const mk = (kind: ProposedClaim["kind"], assertion: string, coverageClaimed: "complete" | "partial"): ProposedClaim => ({
     claimId: `pc-${++n}`,
     kind,
-    subject: ["acct-1187"],
+    subject: [subject],
     assertion,
     evidenceRefs: [...ranking.inputs],
     resultRefs: [ranking.resultId],
     coverageClaimed,
   });
   const claims = [
-    mk("ranking", `most frequent payee this quarter: ${top.counterparty} (${top.payments} payments)`, "complete"),
+    mk("ranking", `most frequent payee in ${window}: ${top.counterparty} (${top.payments} payments)`, "complete"),
   ];
   if (ranking.coverage === "partial")
     claims.push(
       mk(
         "ranking",
-        `most frequent payee within the examined rows: ${top.counterparty} (${top.payments} of the rows read)`,
+        `most frequent payee within the examined rows of ${window}: ${top.counterparty} (${top.payments} of the rows read)`,
         "partial",
       ),
     );

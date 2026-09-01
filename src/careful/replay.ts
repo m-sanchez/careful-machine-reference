@@ -11,7 +11,7 @@ let n = 0;
 export function buildAnswerRecord(
   gateCert: Certification<GateContent>,
   scopeCert: Certification<EffectiveScope>,
-  exec: ExecutionRecord,
+  exec: ExecutionRecord | null, // null when the answer is a routed no: nothing ran
   ledger: Ledger,
   verdicts: Verdict[],
   disposition: DispositionGrounds,
@@ -22,7 +22,7 @@ export function buildAnswerRecord(
     standing: gateCert.content.standing.kind,
     scopeCertRef: scopeCert.certId,
     registryVersion: REGISTRY_VERSION,
-    executionRefs: [exec.execId],
+    executionRefs: exec ? [exec.execId] : [],
     evidenceRefs: [...ledger.evidence.keys()],
     resultRefs: [...ledger.results.keys()],
     certified: verdicts.filter((v) => v.outcome === "certified").map((v) => v.claimId),

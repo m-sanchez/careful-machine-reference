@@ -1314,15 +1314,196 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
           },
     );
   }
+  const rankingAsk = gateCert.content.contract.asks.find(
+    (a) => a.kind === "ranking",
+  );
+  const rankingRefused =
+    rankingAsk != null &&
+    selections.find((s) => s.askId === rankingAsk.askId)?.cannotExecute != null;
+  const refusedSel = selections.filter((s) => s.cannotExecute);
   const interception: InterceptionLog = { entries: [] };
   const w = gateCert.content.contract.window;
-  const { exec, evidence, ranking } = run(
+  // only the operations the registry selected run, and only under this
+  // certification: an ask with no operation, or a subject no grant covers,
+  // reads nothing at all
+  const { executed, exec, evidence, ranking, cannotExecuteGrounds: runGrounds } = run(
     scopeCert,
     store,
     { from: w.from, to: w.to },
     interception,
+    selections,
     req.cap ? { cap: 500 } : {},
   );
+  const cannotExecuteGrounds = [
+    ...refusedSel.map((s) => s.cannotExecute!.ground),
+    ...runGrounds,
+  ];
+  const interceptionCheckpoint: Checkpoint = {
+    station: "INTERCEPTION",
+    status: interception.entries.some((e) => e.decision === "refused")
+      ? "warn"
+      : "pass",
+    detail: interception.entries.length
+      ? `${interception.entries.map((e) => `${e.op} (${e.actionClass}, ${e.decision})`).join(", ")} · logged under ${scopeCert.certId}`
+      : "nothing reached the reader: no operation to intercept",
+    chapter: "ch. 12 · execute.ts",
+  };
+
+  if (!executed || !evidence || !exec) {
+    // nothing was read: every ask was refused, or nothing survived the scope
+    // intersection. The no is routed from the records, not thrown as a 500.
+    const disposition = deriveDisposition({
+      contractCertified: true,
+      unresolvedAmbiguity: false,
+      cannotExecuteGrounds,
+      scopeConflicts: scopeCert.content.conflicts,
+      executed: false,
+      coveragePartial: false,
+      verdicts: [],
+    });
+    const ground =
+      cannotExecuteGrounds[0] ??
+      scopeCert.content.conflicts.map((c) => `${c.element}: ${c.ground}`)[0] ??
+      "no operation ran";
+    log("");
+    log(`EXECUTION: nothing ran; ${ground}`);
+    log(`ANSWER (${disposition.disposition}):`);
+    log(`  "${render([], [], disposition)}"`);
+    steps.push(
+      { t: "EXECUTION", d: `nothing ran: ${ground}`, tone: "stop" },
+      {
+        t: "ANSWER",
+        d: `${disposition.disposition} · to unlock it: ${disposition.pathToYes}`,
+        tone: "warn",
+      },
+    );
+    const outOfAuthority = disposition.disposition === "outside-authority";
+    const declineCheckpoints: Checkpoint[] = [
+      validatorCheckpoint,
+      {
+        station: "GATE",
+        status: "pass",
+        detail: `certified · standing ${gateCert.content.standing.kind}`,
+        chapter: "ch. 3 · gate.ts",
+      },
+      scopeCert.content.conflicts.length
+        ? {
+            station: "SCOPE",
+            status: "warn",
+            detail: `narrowed to [${scopeCert.content.inScope.subjects.join(", ")}]`,
+            chapter: "ch. 6 · scope.ts",
+            catch: {
+              kind: "scope-conflict",
+              artifactText: scopeCert.content.conflicts
+                .map((c) => c.element)
+                .join(", "),
+              ground: scopeCert.content.conflicts
+                .map((c) => c.ground)
+                .join("; "),
+              gloss:
+                "authority is an intersection the proposal cannot widen; what fell out is named",
+            },
+          }
+        : {
+            station: "SCOPE",
+            status: "pass",
+            detail: `accepted · in scope [${scopeCert.content.inScope.subjects.join(", ")}]`,
+            chapter: "ch. 6 · scope.ts",
+          },
+      refusedSel.length
+        ? {
+            station: "REGISTRY",
+            status: "warn",
+            detail: `cannot-execute: ${refusedSel.length} ask(s) have no registered operation`,
+            chapter: "ch. 5 · registry.ts",
+            catch: {
+              kind: rankingRefused ? "refusal" : "novelty-refusal",
+              artifactText: refusedSel
+                .map((sel) => {
+                  const ask = gateCert.content.contract.asks.find(
+                    (a) => a.askId === sel.askId,
+                  );
+                  return ask
+                    ? `${ask.kind}${ask.direction ? ` (${ask.direction})` : ""} ← ${ask.sourceSpan}`
+                    : sel.cannotExecute!.ground;
+                })
+                .join("; "),
+              ground: refusedSel
+                .map((sel) => sel.cannotExecute!.ground)
+                .join("; "),
+              gloss:
+                "capability is a record; honest refusal beats invented ability",
+            },
+          }
+        : {
+            station: "REGISTRY",
+            status: "pass",
+            detail: "every ask has a registered operation",
+            chapter: "ch. 5 · registry.ts",
+          },
+      interceptionCheckpoint,
+      {
+        station: "EXECUTION",
+        status: "stop",
+        detail: `nothing ran: ${ground}`,
+        chapter: "ch. 2 · execute.ts",
+      },
+      {
+        station: "ANSWER",
+        status: "warn",
+        detail: `${disposition.disposition} · to unlock the rest: ${disposition.pathToYes}`,
+        chapter: "ch. 13 · dispose.ts",
+      },
+    ];
+    markClimax(declineCheckpoints);
+    Object.assign(result.careful, {
+      answer: render([], [], disposition),
+      status: `${disposition.disposition} · nothing was read, so nothing is claimed`,
+      badge: {
+        tone: "stop",
+        label: outOfAuthority
+          ? "■ declined: outside the authority it was granted"
+          : "■ declined: no registered operation for that ask",
+      },
+      checkpoints: declineCheckpoints,
+      coverage: null,
+      claimsLedger: [],
+      grade: carefulGradeRows(key, {
+        direction: drawnDirection,
+        declinedAll: ground,
+        noveltyGround: null,
+      }),
+      disposition: {
+        disposition: disposition.disposition,
+        pathToYes: disposition.pathToYes,
+      },
+    });
+    result.why = makeWhy(
+      store,
+      {
+        kind: "stopped",
+        reason: outOfAuthority
+          ? "the subject you asked about is outside the authority it was granted, so it read nothing."
+          : `nothing it is allowed to run can establish what you asked, so it read nothing (${ground}).`,
+      },
+      {
+        conflicts: scopeCert.content.conflicts,
+        unclaimed: proposal.content.unclaimedText,
+      },
+    );
+    if (rankingRefused) {
+      result.why.lines.unshift(
+        "One machine declined this question; the other answered it anyway.",
+        useLive
+          ? "Same model on both sides. Unharnessed, it answered with nothing checkable; as the careful machine's interpreter, its reading was certified and then refused; nothing registered can establish it."
+          : 'The fused machine cannot read your words; it ships its built-in "most frequent" report whatever you ask. The careful machine read the question and declined what nothing registered can establish.',
+      );
+      if (!useLive)
+        result.fused.verdict = `it did not notice you asked something else; ${result.fused.verdict}`;
+    }
+    return done();
+  }
+
   log(
     `EVIDENCE: read ${evidence.coverage.itemsRead} of ${evidence.coverage.populationCount}, complete=${evidence.coverage.complete}`,
   );
@@ -1342,17 +1523,11 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
 
   const ledger: Ledger = {
     evidence: new Map([[evidence.evidenceId, evidence]]),
-    results: new Map([[ranking.resultId, ranking]]),
+    results: new Map(ranking ? [[ranking.resultId, ranking]] : []),
   };
-  // ranking claims are only proposable when the ranking ask has a registered
-  // operation; a refused ask (e.g. least-frequent) must not yield claims
-  const rankingAsk = gateCert.content.contract.asks.find(
-    (a) => a.kind === "ranking",
-  );
-  const rankingRefused =
-    rankingAsk != null &&
-    selections.find((s) => s.askId === rankingAsk.askId)?.cannotExecute != null;
-  const claims = rankingRefused ? [] : proposeClaims(ranking);
+  // claims can only be built from a result that exists, and a result exists
+  // only for an operation the registry selected: no glue required here
+  const claims = proposeClaims(ranking);
   const verdicts = verifyAll(claims, ledger);
   for (const v of verdicts.filter((x) => x.outcome === "struck"))
     log(`CLERK: ${v.claimId} STRUCK (${v.failingCheck})`);
@@ -1371,11 +1546,9 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
   const disposition = deriveDisposition({
     contractCertified: true,
     unresolvedAmbiguity: false,
-    cannotExecuteGrounds: selections
-      .filter((s) => s.cannotExecute)
-      .map((s) => s.cannotExecute!.ground),
+    cannotExecuteGrounds,
     scopeConflicts: scopeCert.content.conflicts,
-    executed: true,
+    executed,
     coveragePartial: !evidence.coverage.complete,
     verdicts,
   });
@@ -1423,7 +1596,7 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
         r.at >= QUARTER.from && r.at <= QUARTER.to && r.kind === "external",
     ),
   )[0];
-  const rankedValue = ranking.value as {
+  const rankedValue = (ranking?.value ?? []) as {
     counterparty: string;
     payments: number;
   }[];
@@ -1433,7 +1606,9 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
   else if (disposition.disposition === "cannot-execute")
     badge = {
       tone: "stop",
-      label: "■ declined: no registered operation for that ask",
+      label: refusedSel.length
+        ? "■ declined: no registered operation for that ask"
+        : "■ declined: nothing it can run establishes that ask",
     };
   else if (disposition.disposition === "unsupported")
     badge = {
@@ -1504,7 +1679,6 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
   }
   // the structured station chain the page renders as checkpoints + stamps
   const struckV = verdicts.filter((v) => v.outcome === "struck");
-  const refusedSel = selections.filter((s) => s.cannotExecute);
   const noveltyGround =
     refusedSel
       .map((s) => s.cannotExecute!.ground)
@@ -1586,6 +1760,7 @@ async function runPipeline(req: RunRequest): Promise<RunResult> {
           detail: "every ask has a registered operation",
           chapter: "ch. 5 · registry.ts",
         },
+    interceptionCheckpoint,
     evidence.coverage.complete
       ? {
           station: "EVIDENCE",
