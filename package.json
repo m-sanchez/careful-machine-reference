@@ -12,7 +12,7 @@
   "author": "Miguel Sanchez <contact@miguelsanchez.co.uk>",
   "license": "MIT",
   "scripts": {
-    "test": "node --experimental-strip-types --test test/fused.test.ts test/careful.test.ts test/types.test.ts",
+    "test": "node --experimental-strip-types --test test/fused.test.ts test/careful.test.ts test/interpreter.test.ts test/types.test.ts",
     "demo": "node --experimental-strip-types src/demo.ts",
     "typecheck": "tsc --noEmit",
     "demo:hostile": "node --experimental-strip-types src/demo-hostile-confirmed.ts",

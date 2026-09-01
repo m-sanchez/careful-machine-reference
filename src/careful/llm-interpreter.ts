@@ -149,10 +149,16 @@ const isDate = (v: unknown): v is string =>
   typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
 
 // deterministic checks on the draft: the model's output earns nothing by
-// being fluent; a malformed draft is rejected, never repaired silently
-function validate(
+// being fluent; a malformed draft is rejected, never repaired silently.
+// Exported because this is the boundary the whole live mode rests on: it is
+// pure over a parsed object, so the suite can run it offline (test/interpreter).
+export function validate(
   raw: RawDraft,
 ): Omit<RequestContract, "contractId" | "requestText"> {
+  // a draft that is not even an object is refused by name, like every other
+  // malformation: the reason is recorded, so it must never be a stray TypeError
+  if (!raw || typeof raw !== "object")
+    throw new Error("draft rejected: not an object");
   if (!isStrings(raw.subjects) || raw.subjects.length === 0)
     throw new Error("draft rejected: subjects");
   if (!isStrings(raw.sources) || raw.sources.length === 0)
@@ -218,7 +224,7 @@ let contractSeq = 0;
 // transport-layer normalization only, never semantic repair: some drafts
 // arrive double-encoded (the whole valid object as a JSON string inside one
 // property); unwrap that envelope and let validation judge the content
-function normalize(input: unknown): RawDraft {
+export function normalize(input: unknown): RawDraft {
   if (input && typeof input === "object" && !("subjects" in input)) {
     for (const v of Object.values(input)) {
       if (
