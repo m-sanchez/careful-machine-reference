@@ -4,6 +4,13 @@
   "private": true,
   "type": "module",
   "description": "Reference implementation for The Careful Machine: one question answered by the chapter-1 machine and by the careful architecture, side by side. Demonstration, not framework.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/m-sanchez/careful-machine-reference.git"
+  },
+  "homepage": "https://miguelsanchez.co.uk/careful-machine",
+  "author": "Miguel Sanchez <contact@miguelsanchez.co.uk>",
+  "license": "MIT",
   "scripts": {
     "test": "node --experimental-strip-types --test test/fused.test.ts test/careful.test.ts test/types.test.ts",
     "demo": "node --experimental-strip-types src/demo.ts",
