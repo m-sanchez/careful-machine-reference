@@ -6,6 +6,14 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { normalize, validate } from "../src/careful/llm-interpreter.ts";
 
+// README promises `npm test` stays fully offline, and this is the only test
+// file that loads the network-capable module: any call is a failure here
+let networkCalls = 0;
+globalThis.fetch = (() => {
+  networkCalls += 1;
+  throw new Error("the suite must not touch the network");
+}) as typeof fetch;
+
 // a draft that passes, so each case below can spoil exactly one thing
 const wellFormed = () => ({
   subjects: ["acct-1187"],
@@ -117,4 +125,10 @@ test("normalize unwraps a double-encoded envelope and changes nothing else", () 
 test("normalize invents nothing: an envelope carrying a spoiled draft is still rejected", () => {
   const spoiled = spoil((d) => delete (d.asks[0] as { direction?: string }).direction);
   assert.throws(() => validate(normalize({ input: JSON.stringify(spoiled) })), /ask 0 direction/);
+});
+
+test("validate and normalize never touch the network", () => {
+  validate(normalize(wellFormed()));
+  assert.throws(() => validate(normalize(null)));
+  assert.equal(networkCalls, 0);
 });

@@ -1,8 +1,9 @@
-// Compile-time gates. These "tests" are checked by `npm run typecheck`:
+// Structural gates. The compile-time ones are checked by `npm run typecheck`:
 // each @ts-expect-error line FAILS the build if the forbidden construction
-// ever becomes possible. The runtime test only proves the file is included.
+// ever becomes possible. The runtime tests pin what the package itself claims.
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { readFileSync } from "node:fs";
 import { proposalId, type ExecutionRecord, type Standing } from "../src/records.ts";
 
 const _badExec: ExecutionRecord = {
@@ -21,4 +22,11 @@ const _forgedStanding: Standing = {
 
 test("compile-time gates are declared (enforced by tsc, see @ts-expect-error above)", () => {
   assert.ok(true);
+});
+
+test("the package declares no runtime dependencies", () => {
+  const pkg = JSON.parse(
+    readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+  ) as { dependencies?: Record<string, string> };
+  assert.deepEqual(Object.keys(pkg.dependencies ?? {}), []);
 });

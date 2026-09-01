@@ -71,12 +71,13 @@ Each core test is a book claim made executable:
 | renderer cannot leak a struck claim | ch. 11: narration is constrained to the certified set |
 | hostile drafts are rejected with the ground named, never repaired | ch. 3-4: the interpreter proposes; validation decides |
 | the answer record replays with every reference resolving | ch. 17: an answer is a join over records |
+| the package declares no runtime dependencies | the zero-dependency decision below, checked rather than asserted |
 
-Forty tests, and every one of them backs a row above: twenty are the
-interpreter's hostile-draft table (`test/interpreter.test.ts`), the rest are
-the pipeline and the compile-time gates. `CLAIMS.md` maps each claim in this
-README to the test that enforces it. All identifiers and numbers are invented
-and illustrative.
+Every test in the suite backs a row above; the largest block is the
+interpreter's hostile-draft table (`test/interpreter.test.ts`), one test per
+draft. `CLAIMS.md` maps every claim on this page to the test that enforces
+it, and names the few that no test can. All identifiers and numbers are
+invented and illustrative.
 
 ## Running with a real model (opt-in)
 
