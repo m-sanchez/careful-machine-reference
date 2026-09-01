@@ -6,6 +6,8 @@
 [![CI](https://img.shields.io/github/actions/workflow/status/m-sanchez/careful-machine-reference/test.yml?branch=main&label=CI)](https://github.com/m-sanchez/careful-machine-reference/actions/workflows/test.yml)
 ![License](https://img.shields.io/badge/license-MIT-6E6E6E)
 
+> **In plain English:** the AI drafts an answer, plain code checks it and verifies the citations, and if the check fails it refuses instead of guessing. This is a small working example of that idea.
+
 [Recorded runs and live tamper bench](https://miguelsanchez.co.uk/careful-machine) ·
 [Working rules](https://miguelsanchez.co.uk/ethics) ·
 [More tools](https://github.com/m-sanchez)
