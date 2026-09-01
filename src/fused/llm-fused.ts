@@ -1,8 +1,10 @@
 // The fused machine, live: the SAME model the careful machine uses as its
-// interpreter, but unharnessed; it is handed the question and page one of
-// the data, and one generation produces the reading, the counting, and the
-// narration. Nothing it does is validated, recorded, or replayable; the
-// forced tool exists only because the app's UI needs fields to render.
+// interpreter, but unharnessed; it is handed the question and whatever rows
+// the caller passes (by default EVERY row for the account, history included:
+// the fair fight; the cap toggle re-imposes page one on both machines), and
+// one generation produces the reading, the counting, and the narration.
+// Nothing it does is validated, recorded, or replayable; the forced tool
+// exists only because the app's UI needs fields to render.
 const API_URL =
   (process.env.ANTHROPIC_BASE_URL || "https://api.anthropic.com").replace(
     /\/$/,
@@ -70,12 +72,12 @@ export interface FusedExchange {
 
 export async function callFusedLive(
   question: string,
-  pageOneText: string,
+  rowsText: string,
 ): Promise<{ fields: FusedFields; exchange: FusedExchange }> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("ANTHROPIC_API_KEY is not set");
   const model = process.env.ANTHROPIC_MODEL || DEFAULT_MODEL;
-  const userMessage = `${question}\n\nPAYMENT DATA:\n${pageOneText}`;
+  const userMessage = `${question}\n\nPAYMENT DATA:\n${rowsText}`;
   const res = await fetch(API_URL, {
     method: "POST",
     headers: {

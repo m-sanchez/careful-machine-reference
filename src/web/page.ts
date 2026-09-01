@@ -288,7 +288,7 @@ details pre, .tech pre { font:12px/1.6 var(--mono); white-space:pre-wrap; overfl
     </span>
     <label class="ck"><input type="checkbox" id="cap">Silent 500-row cap (both machines)</label>
   </div>
-  <div class="drawnote">Standing records who vouched for the model's reading of your words; it never grants coverage. The cap hands BOTH machines only page one (500 rows); the careful machine stamps its coverage and says so; the fused one cannot. Each live run makes two small API calls to ${opts.modelLabel}: one as the fused machine (it answers everything itself), one as the careful machine's interpreter (it drafts the reading, never the numbers).</div>
+  <div class="drawnote">Standing records who vouched for the model's reading of your words; it never grants coverage. The cap hands BOTH machines only page one (500 rows); the careful machine stamps its coverage and says so; the fused one cannot. Each live run makes two small API calls to ${opts.modelLabel}: one as the fused machine (it answers everything itself), one as the careful machine's interpreter (it drafts the reading, never the numbers). A rejected draft costs a third: the interpreter gets exactly one fresh try, then the refusal stands.</div>
 </div>
 
 <div class="drawer" id="evdrawer" hidden>
@@ -309,7 +309,7 @@ details pre, .tech pre { font:12px/1.6 var(--mono); white-space:pre-wrap; overfl
   <li><span class="who m">model</span><b>The model speaks only in Band 2, verbatim.</b> Every other sentence on this page (the judges of Band 3, every grade in Band 4) is written by code.</li>
   <li><span class="who m">model</span><b>Fused</b> = the model unharnessed: reading, counting, and narration in one generation, checked by nothing. A language model does not run a counter; it emits numbers shaped like counts.</li>
   <li><span class="who cd">code</span><b>Careful</b> = the same model allowed only to draft a reading of your words. Loops do the counting, records back every claim, and it declines what nothing registered can establish.</li>
-  <li>In live mode each run makes two small API calls, one per machine. Nothing is sent until you press Run.</li>
+  <li>In live mode each run makes two small API calls, one per machine, and a third only if the interpreter's first draft is rejected. Nothing is sent until you press Run.</li>
 </ul>
 </details>
 <div id="stale" hidden><span>Settings changed; results below are from the previous run.</span><button id="stalebtn">Run updated settings</button></div>
@@ -548,7 +548,7 @@ function activate(key, userGesture) {
     try { history.replaceState(null, "", "#" + key); } catch (e) {}
     if (liveMode() && !userGesture) {
       $("#status").className = "";
-      $("#status").textContent = "Ready: press Run to send this question to " + MODEL_LABEL + " (two small API calls per run).";
+      $("#status").textContent = "Ready: press Run to send this question to " + MODEL_LABEL + " (two small API calls per run, three if a draft is rejected).";
       if ($("#results").hidden) $("#placeholder").hidden = false;
       return;
     }

@@ -59,15 +59,24 @@ Each core test is a book claim made executable:
 | `requester-confirmed` unmintable except via the requester record | ch. 3: standing integrity; policy never certifies meaning |
 | partial-read ranking struck unqualified; qualified form certified with subset named | ch. 8/11: claims carry the coverage they can support |
 | `no-occurrence` fails on incomplete read and on unknown population | ch. 8: unknown is not zero |
+| a complete read certifies the unqualified ranking, naming the true top payee | ch. 8/11: coverage is what a claim may lean on |
 | novelty ask lands `cannot-execute` with nearest-serviceable facts | ch. 5: capability is a record; honest refusal beats invented ability |
+| a least-frequent ask certifies nothing, end to end | ch. 5: the nearest registered operation is not the one asked for |
+| a presence ask certifies no ranking claim, and `ranOperations` names what ran | ch. 5/12: what the registry selected is what executes |
+| a subject no grant covers is a routed no, not a crash | ch. 13: outside-authority is an answer, with the scope owner named |
+| every read is intercepted and logged under the certification it ran under | ch. 12: reads are classified and recorded, not assumed |
+| a certified claim names the window and subject that were actually read | ch. 9/11: a claim carries its own provenance, not a house style |
 | hostile "search every account" widens the proposal, not the scope | ch. 6: authority is an intersection the proposal cannot move |
 | disposition derives from records only, by fixed precedence | ch. 13: the no is routed, not narrated |
 | renderer cannot leak a struck claim | ch. 11: narration is constrained to the certified set |
+| hostile drafts are rejected with the ground named, never repaired | ch. 3-4: the interpreter proposes; validation decides |
 | the answer record replays with every reference resolving | ch. 17: an answer is a join over records |
 
-Eleven of the suite's fourteen tests are the book claims above; the other
-three pin plumbing (fixtures, type gates). All identifiers and numbers are
-invented and illustrative.
+Forty tests, and every one of them backs a row above: twenty are the
+interpreter's hostile-draft table (`test/interpreter.test.ts`), the rest are
+the pipeline and the compile-time gates. `CLAIMS.md` maps each claim in this
+README to the test that enforces it. All identifiers and numbers are invented
+and illustrative.
 
 ## Running with a real model (opt-in)
 
@@ -87,16 +96,21 @@ ANTHROPIC_API_KEY=sk-... npm run demo:live -- "your own question"
 
 `ANTHROPIC_MODEL` overrides the default (`claude-sonnet-5`);
 `ANTHROPIC_BASE_URL` is honoured. The key is read from the environment for
-the one request and never stored or printed. `npm test` stays fully offline.
+that run's requests and never stored or printed. `npm test` stays fully
+offline.
 
 The web UI defaults to live mode when the key is set (an "Offline stub"
 toggle sits next to Run). In live mode the SAME model runs on both sides:
-as the fused machine it is handed the question plus page one of the data
-and one unvalidated generation ships as the answer; as the careful
-machine's interpreter it drafts the reading only, and plain code does the
-rest. Nothing is sent on page load; a run happens only when you press Run
-or pick a scenario, and each live run makes two small API calls (one per
-machine). The "Model exchange" panel on every result shows both calls
+as the fused machine it is handed the question plus every row for the
+account, history included, and one unvalidated generation ships as the
+answer; as the careful machine's interpreter it drafts the reading only,
+and plain code does the rest. The fight is deliberately fair: nothing is
+withheld from the fused side, so any failure there is the generation's own,
+and the cap toggle re-imposes the silent 500-row page one on BOTH machines
+at once. Nothing is sent on page load; a run happens only when you press
+Run or pick a scenario, and each live run makes two small API calls (one
+per machine), or three when a draft is rejected and the interpreter takes
+its one fresh try. The "Model exchange" panel on every result shows both calls
 verbatim: what was sent (system prompts, question, data, tool schemas),
 what came back, and what each side was allowed to do with it. The key
 stays in the server process; the browser only ever sees the model's
